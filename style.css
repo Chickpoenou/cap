@@ -1,5 +1,5 @@
 /* ============================================================
-   Cap — feuille de style (étapes 1 à 4)
+   Cap — feuille de style (étapes 1 à 5)
    Mise en page simple : une colonne centrée, flexbox pour les
    lignes, grid pour les cartes de totaux. Aucun framework.
    ============================================================ */
@@ -235,6 +235,15 @@ main {
 .texte-alerte {
   background: #fdecea;
   color: #8a211b;
+  font-weight: 700;
+}
+
+/* Alerte critique dans la liste des alertes du tableau de bord.
+   Ligne en rouge vif pour distinguer les dépassements réels. */
+.alerte-critique {
+  color: var(--couleur-depense);
+  font-weight: 700;
+  padding: 4px 0;
 }
 
 .barre-progression {
@@ -326,6 +335,28 @@ main {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/* Bandeau de rappel de sauvegarde, juste au-dessus des cartes. */
+.bandeau-rappel {
+  background: #fff8e1;
+  border: 1px solid #f5c842;
+  border-radius: var(--rayon);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+
+.bandeau-rappel p {
+  margin: 0 0 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #5a3e00;
+}
+
+.actions-rappel {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .bouton-fichier {
@@ -697,7 +728,9 @@ main {
   #formulaire-budget,
   #formulaire-objectif,
   #formulaire-cotisation,
-  #formulaire-achat {
+  #formulaire-achat,
+  #formulaire-investissement,
+  #formulaire-apport {
     display: grid;
     grid-template-columns: 1fr 1fr;
     column-gap: 16px;

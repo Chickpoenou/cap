@@ -97,8 +97,8 @@
       </div>
 
       <div class="carte">
-        <h2>Investissements</h2>
-        <p class="note">Le suivi des investissements arrive à l'étape 5 du plan.</p>
+        <div class="ligne-flex"><h2>Investissements</h2><button type="button" class="btn btn-secondaire" data-ecran="investissements">Voir les investissements</button></div>
+        <div id="resume-investissements"></div>
       </div>
     </section>
 
@@ -155,15 +155,15 @@
       </div>
     </section>
 
-    <!-- ============ ÉCRAN 6 : INVESTISSEMENTS (étape 5 du plan) ============ -->
+    <!-- ============ ÉCRAN 6 : INVESTISSEMENTS ============ -->
     <section id="ecran-investissements" class="ecran">
       <div class="carte">
-        <h2>Investissements</h2>
-        <p>Cet écran sera construit à l'étape 5 du plan. Il permettra de :</p>
-        <ul class="liste-simple">
-          <li>suivre un investissement : montant investi, apports, valeur actuelle saisie à la main ;</li>
-          <li>voir l'écart estimé entre la valeur saisie et les apports cumulés.</li>
-        </ul>
+        <div class="ligne-flex">
+          <div><h2>Investissements</h2><p class="note">Saisis chaque investissement manuellement : montant investi, valeur estimée, frais et revenus associés.</p></div>
+          <button type="button" id="btn-nouvel-investissement" class="btn btn-principal">+ Nouvel investissement</button>
+        </div>
+        <div id="liste-investissements" class="liste-cartes"></div>
+        <p id="investissements-vides" class="vide">Aucun investissement enregistré. Crée par exemple « Terrain » ou « Épargne NSIA ».</p>
       </div>
     </section>
 
@@ -182,13 +182,22 @@
 
     <!-- ============ ÉCRAN 8 : PARAMÈTRES ============ -->
     <section id="ecran-parametres" class="ecran">
+      <div id="bandeau-rappel-sauvegarde" class="bandeau-rappel" hidden>
+        <p>💾 Aucune sauvegarde récente détectée. Exporte tes données régulièrement pour ne rien perdre en cas de problème.</p>
+        <div class="actions-rappel">
+          <button type="button" class="btn btn-principal" id="btn-rappel-exporter">Exporter maintenant</button>
+          <button type="button" class="btn btn-secondaire" id="btn-fermer-rappel">Plus tard</button>
+        </div>
+      </div>
+
       <div class="carte">
         <h2>Sauvegarde et restauration</h2>
         <p>Les données restent sur cet appareil. Exporte régulièrement une sauvegarde JSON et conserve-la dans un endroit sûr.</p>
         <div class="actions-sauvegarde">
-          <button type="button" class="btn btn-principal" id="btn-exporter">Exporter une sauvegarde</button>
+          <button type="button" class="btn btn-principal" id="btn-exporter">Exporter une sauvegarde JSON</button>
           <label class="btn btn-secondaire bouton-fichier" for="fichier-sauvegarde">Restaurer une sauvegarde</label>
           <input type="file" id="fichier-sauvegarde" accept=".json,application/json" hidden>
+          <button type="button" class="btn btn-secondaire" id="btn-exporter-csv">Exporter les transactions CSV</button>
           <button type="button" class="btn btn-secondaire" id="btn-exporter-brut">Exporter le contenu brut du stockage</button>
         </div>
         <p id="etat-sauvegarde" class="note" aria-live="polite"></p>
@@ -212,7 +221,7 @@
   </main>
 
   <footer class="pied">
-    <p>Cap — version 0.4 (étapes 1 à 4). Données enregistrées uniquement sur cet appareil ; pense à les sauvegarder.</p>
+    <p>Cap — version 0.5 (étapes 1 à 5). Données enregistrées uniquement sur cet appareil ; pense à les sauvegarder.</p>
   </footer>
 
   <!-- ============ FORMULAIRE DE TRANSACTION (superposition) ============ -->
@@ -446,6 +455,79 @@
       </form>
     </div>
   </section>
+  <!-- ============ FORMULAIRE D'INVESTISSEMENT ============ -->
+  <section id="voile-investissement" class="voile cache" role="dialog" aria-modal="true" aria-labelledby="titre-investissement">
+    <div class="voile-carte">
+      <h2 id="titre-investissement">Nouvel investissement</h2>
+      <form id="formulaire-investissement" novalidate>
+        <div class="champ champ-large">
+          <label for="investissement-nom">Nom <span class="obligatoire">*</span></label>
+          <input id="investissement-nom" type="text" maxlength="80" placeholder="ex : Terrain Cocody, NSIA Vie">
+          <small class="message-erreur" id="erreur-investissement-nom"></small>
+        </div>
+        <div class="champ">
+          <label for="investissement-type">Type</label>
+          <input id="investissement-type" type="text" maxlength="60" placeholder="ex : Immobilier, Assurance-vie">
+        </div>
+        <div class="champ">
+          <label for="investissement-valeur">Valeur actuelle estimée (FCFA)</label>
+          <input id="investissement-valeur" type="number" min="0" step="1" inputmode="numeric" placeholder="Laisser vide si inconnue">
+          <small class="message-erreur" id="erreur-investissement-valeur"></small>
+        </div>
+        <div class="champ">
+          <label for="investissement-date-valeur">Date de cette estimation</label>
+          <input id="investissement-date-valeur" type="date">
+        </div>
+        <div class="champ">
+          <label for="investissement-frais">Frais cumulés (FCFA)</label>
+          <input id="investissement-frais" type="number" min="0" step="1" inputmode="numeric">
+          <small class="message-erreur" id="erreur-investissement-frais"></small>
+        </div>
+        <div class="champ">
+          <label for="investissement-revenus">Revenus cumulés (FCFA)</label>
+          <input id="investissement-revenus" type="number" min="0" step="1" inputmode="numeric">
+          <small class="message-erreur" id="erreur-investissement-revenus"></small>
+        </div>
+        <div class="champ champ-large">
+          <label for="investissement-notes">Notes</label>
+          <textarea id="investissement-notes" rows="2" maxlength="400" placeholder="ex : acheté en sept. 2024, mise en valeur prévue"></textarea>
+        </div>
+        <div class="actions-formulaire champ-large">
+          <button type="button" class="btn btn-secondaire" data-fermer="investissement">Annuler</button>
+          <button type="submit" class="btn btn-principal">Enregistrer</button>
+          <button type="button" class="btn btn-danger" id="btn-supprimer-investissement" hidden>Supprimer</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ============ FORMULAIRE D'APPORT ============ -->
+  <section id="voile-apport" class="voile cache" role="dialog" aria-modal="true" aria-labelledby="titre-apport">
+    <div class="voile-carte">
+      <h2 id="titre-apport">Ajouter un apport</h2>
+      <form id="formulaire-apport" novalidate>
+        <div class="champ champ-large">
+          <label for="apport-montant">Montant (FCFA) <span class="obligatoire">*</span></label>
+          <input id="apport-montant" type="number" min="1" step="1" inputmode="numeric">
+          <small class="message-erreur" id="erreur-apport-montant"></small>
+        </div>
+        <div class="champ champ-large">
+          <label for="apport-date">Date de l'apport</label>
+          <input id="apport-date" type="date">
+          <small class="message-erreur" id="erreur-apport-date"></small>
+        </div>
+        <div class="champ champ-large">
+          <label for="apport-note">Note (facultatif)</label>
+          <input id="apport-note" type="text" maxlength="160" placeholder="ex : virement initial">
+        </div>
+        <div class="actions-formulaire champ-large">
+          <button type="button" class="btn btn-secondaire" data-fermer="apport">Annuler</button>
+          <button type="submit" class="btn btn-principal">Enregistrer l'apport</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
 
 </body>
 </html>

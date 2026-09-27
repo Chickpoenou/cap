@@ -1,6 +1,7 @@
 /* ============================================================
    Cap — logique de l'application
-   Étapes 1 à 4 : navigation, transactions, activités, budgets et objectifs.
+   Étapes 1 à 5 : navigation, transactions, activités, budgets,
+   objectifs, investissements, export CSV et rappel de sauvegarde.
    Toutes les données sont enregistrées dans le stockage local
    du navigateur (localStorage), rien n'est envoyé sur Internet.
    ============================================================ */
@@ -109,9 +110,18 @@ function structureValide(objet) {
     Array.isArray(objet.transactions) && objet.transactions.every(transactionValide) &&
     (objet.activites === undefined || (Array.isArray(objet.activites) && objet.activites.every(activiteValide))) &&
     (objet.objectifs === undefined || (Array.isArray(objet.objectifs) && objet.objectifs.every(objectifValide))) &&
-    objetsValides(objet.investissements) &&
+    (objet.investissements === undefined || (Array.isArray(objet.investissements) && objet.investissements.every(investissementValide))) &&
     (objet.budgets === undefined || (Array.isArray(objet.budgets) && objet.budgets.every(budgetValide))) &&
     (objet.reglages === undefined || (objet.reglages !== null && typeof objet.reglages === 'object'));
+}
+
+/* Vérifie la structure minimale d'un investissement. */
+function investissementValide(inv) {
+  return inv !== null && typeof inv === 'object' &&
+    typeof inv.id === 'string' && typeof inv.nom === 'string' &&
+    Array.isArray(inv.apports) &&
+    (inv.valeurActuelle === null || (typeof inv.valeurActuelle === 'number' && Number.isFinite(inv.valeurActuelle))) &&
+    Number.isFinite(inv.creeLe);
 }
 
 function activiteValide(activite) {
@@ -229,6 +239,10 @@ function exporterSauvegarde() {
     afficherEtatSauvegarde("La sauvegarde structurée est bloquée tant que les données ne sont pas lisibles. Exporte le contenu brut ou restaure une sauvegarde valide.");
     return;
   }
+  /* Mémoriser la date de la dernière sauvegarde (pour le rappel). */
+  donnees.reglages.derniereSauvegarde = aujourdhuiISO();
+  enregistrerDonnees();
+  masquerRappelSauvegarde();
   const sauvegarde = {
     application: 'Cap',
     versionSauvegarde: 1,
@@ -237,6 +251,69 @@ function exporterSauvegarde() {
   };
   telechargerTexte('cap-sauvegarde-' + aujourdhuiISO() + '.json', JSON.stringify(sauvegarde, null, 2), 'application/json');
   afficherEtatSauvegarde('Sauvegarde JSON téléchargée. Conserve une copie hors de cet appareil.');
+}
+
+/* Exporte les transactions en fichier CSV (UTF-8 avec BOM pour Excel).
+   Toutes les transactions enregistrées sont incluses. */
+function exporterCSV() {
+  if (!donnees.transactions.length) {
+    afficherEtatSauvegarde("Aucune transaction à exporter.");
+    return;
+  }
+  const BOM = '\uFEFF'; /* BOM UTF-8 : assure la compatibilité avec Excel */
+  const entete = ['Date', 'Type', 'Montant', 'Catégorie', 'Activité', 'Moyen de paiement', 'Note', 'Objectif lié'].join(';');
+  const lignes = donnees.transactions
+    .slice()
+    .sort(function (a, b) { return a.date < b.date ? 1 : -1; })
+    .map(function (t) {
+      const typeLibelle = t.type === 'revenu' ? 'Revenu' : (t.type === 'depense' ? 'Dépense' : 'Transfert');
+      const activiteNom = nomActivite(t.activiteId);
+      const objectifNom = t.objectifId
+        ? (donnees.objectifs.find(function (o) { return o.id === t.objectifId; }) || {}).nom || ''
+        : '';
+      /* Encapsuler les champs texte entre guillemets pour protéger
+         les virgules et les points-virgules internes. */
+      const cellule = function (valeur) { return '"' + String(valeur || '').replace(/"/g, '""') + '"'; };
+      return [
+        t.date,
+        typeLibelle,
+        t.montant,
+        cellule(t.categorie),
+        cellule(activiteNom),
+        cellule(t.moyen),
+        cellule(t.note),
+        cellule(objectifNom)
+      ].join(';');
+    });
+  telechargerTexte(
+    'cap-transactions-' + aujourdhuiISO() + '.csv',
+    BOM + entete + '\n' + lignes.join('\n'),
+    'text/csv;charset=utf-8'
+  );
+  afficherEtatSauvegarde('Export CSV téléchargé (' + donnees.transactions.length + ' transactions).');
+}
+
+/* Affiche un bandeau de rappel si aucune sauvegarde n'a été faite
+   depuis plus de JOURS_RAPPEL jours. */
+const JOURS_RAPPEL_SAUVEGARDE = 30;
+
+function verifierRappelSauvegarde() {
+  const bandeau = document.getElementById('bandeau-rappel-sauvegarde');
+  if (!bandeau || stockageEnErreur) return;
+  const derniere = donnees.reglages.derniereSauvegarde;
+  if (!derniere) {
+    /* Première utilisation : afficher le rappel seulement si
+       des transactions existent déjà. */
+    if (donnees.transactions.length > 0) bandeau.hidden = false;
+    return;
+  }
+  const joursEcoules = Math.floor((new Date(aujourdhuiISO()) - new Date(derniere)) / 86400000);
+  if (joursEcoules >= JOURS_RAPPEL_SAUVEGARDE) bandeau.hidden = false;
+}
+
+function masquerRappelSauvegarde() {
+  const bandeau = document.getElementById('bandeau-rappel-sauvegarde');
+  if (bandeau) bandeau.hidden = true;
 }
 
 function exporterContenuBrut() {
@@ -436,6 +513,12 @@ function totaux(liste) {
 
 /* ---------- 7. Activités et budgets ---------- */
 
+function nomInvestissement(id) {
+  if (!id) return '';
+  const inv = donnees.investissements.find(function (i) { return i.id === id; });
+  return inv ? inv.nom : '';
+}
+
 function transactionsDeBudget(budget) {
   return donnees.transactions.filter(function (transaction) {
     if (transaction.type !== 'depense' || transaction.date.slice(0, 7) !== budget.mois) return false;
@@ -569,28 +652,60 @@ function rendreAlertesBudget() {
   const vide = document.getElementById('alertes-vides');
   liste.replaceChildren();
   const mois = moisAlertesTableau();
+
+  /* Budgets dont le seuil est atteint ou dépassé. */
   const alertesBudget = mois ? donnees.budgets.filter(function (budget) {
     return budget.mois === mois && depensesBudget(budget) >= budget.montant * budget.seuil / 100;
   }) : [];
+
+  /* Objectifs en retard ou dont la date est dépassée. */
   const alertesObjectif = donnees.objectifs.filter(function (objectif) {
     return objectif.statut === 'encours' && (
-      (objectif.dateCible && objectif.dateCible < aujourdhuiISO() && montantRestantObjectif(objectif) > 0) || cotisationEnRetard(objectif)
+      (objectif.dateCible && objectif.dateCible < aujourdhuiISO() && montantRestantObjectif(objectif) > 0) ||
+      cotisationEnRetard(objectif)
     );
   });
-  if (!mois && !alertesObjectif.length) {
-    vide.textContent = 'Pour afficher les budgets, choisis une période qui reste dans un seul mois.';
+
+  /* Activités dont les dépenses réelles dépassent le budget prévu (§ 4.4). */
+  const alertesActivite = donnees.activites.filter(function (activite) {
+    if (activite.statut === 'terminee') return false;
+    if (activite.budget === null || activite.budget === undefined) return false;
+    return totauxActivite(activite.id).depenses > activite.budget;
+  });
+
+  const totalAlertes = alertesBudget.length + alertesObjectif.length + alertesActivite.length;
+
+  if (!mois && !alertesObjectif.length && !alertesActivite.length) {
+    vide.textContent = 'Pour afficher les alertes de budget mensuel, choisis une période dans un seul mois.';
     vide.hidden = false;
   } else {
-    vide.textContent = alertesBudget.length || alertesObjectif.length ? '' : 'Aucune alerte de budget ou d’objectif pour cette période.';
-    vide.hidden = alertesBudget.length + alertesObjectif.length > 0;
+    vide.textContent = totalAlertes ? '' : 'Aucune alerte de budget ou d'objectif pour cette période.';
+    vide.hidden = totalAlertes > 0;
   }
+
+  /* Afficher les alertes de budget mensuel. */
   for (const budget of alertesBudget) {
     const utilise = depensesBudget(budget);
     const li = document.createElement('li');
+    li.className = utilise > budget.montant ? 'alerte-critique' : '';
     li.textContent = nomPorteeBudget(budget) + ' : ' + formaterMontant(utilise) + ' dépensés sur ' +
-      formaterMontant(budget.montant) + (utilise > budget.montant ? ' — budget dépassé.' : ' — seuil de ' + budget.seuil + ' % atteint.');
+      formaterMontant(budget.montant) + (utilise > budget.montant ? ' — budget dépassé !' : ' — seuil de ' + budget.seuil + ' % atteint.');
     liste.appendChild(li);
   }
+
+  /* Afficher les alertes d'activité. */
+  for (const activite of alertesActivite) {
+    const depenses = totauxActivite(activite.id).depenses;
+    const depassement = depenses - activite.budget;
+    const li = document.createElement('li');
+    li.className = 'alerte-critique';
+    li.textContent = 'Activité « ' + activite.nom + ' » : ' +
+      formaterMontant(depenses) + ' dépensés sur budget de ' + formaterMontant(activite.budget) +
+      ' — dépassement de ' + formaterMontant(depassement) + '.';
+    liste.appendChild(li);
+  }
+
+  /* Afficher les alertes d'objectif. */
   for (const objectif of alertesObjectif) {
     const li = document.createElement('li');
     const messages = [];
@@ -664,7 +779,301 @@ function rendreBudgets() {
   }
 }
 
-/* ---------- 8. Objectifs d'épargne et cotisations ---------- */
+/* ---------- 8. Investissements ---------- */
+
+/* Calcule le total des apports d'un investissement. */
+function apportsCumules(inv) {
+  return inv.apports.reduce(function (total, apport) { return total + apport.montant; }, 0);
+}
+
+/* Calcule l'écart estimé : valeur actuelle − apports − frais + revenus. */
+function ecartEstime(inv) {
+  if (inv.valeurActuelle === null) return null;
+  return inv.valeurActuelle - apportsCumules(inv) - (inv.frais || 0) + (inv.revenus || 0);
+}
+
+/* Construit la carte d'un investissement dans la liste. */
+function construireCarteInvestissement(inv, compacte) {
+  const cumul = apportsCumules(inv);
+  const ecart = ecartEstime(inv);
+  const carte = document.createElement('article');
+  carte.className = 'carte carte-element';
+  if (compacte) carte.classList.add('carte-compacte');
+
+  const entete = document.createElement('div');
+  entete.className = 'ligne-flex';
+  const nom = document.createElement('h3');
+  nom.textContent = inv.nom;
+  const badge = document.createElement('span');
+  badge.className = 'badge-statut statut-encours';
+  badge.textContent = inv.type || 'Investissement';
+  entete.append(nom, badge);
+  carte.appendChild(entete);
+
+  const chiffres = document.createElement('p');
+  chiffres.className = 'resume-financier';
+  let ligneChiffres = 'Apports cumulés : ' + formaterMontant(cumul);
+  if (inv.valeurActuelle !== null) {
+    ligneChiffres += ' · Valeur estimée : ' + formaterMontant(inv.valeurActuelle);
+    if (inv.dateMiseAJourValeur) ligneChiffres += ' (au ' + formaterDateCourte(inv.dateMiseAJourValeur) + ')';
+  }
+  chiffres.textContent = ligneChiffres;
+  carte.appendChild(chiffres);
+
+  if (ecart !== null) {
+    const ligne = document.createElement('p');
+    ligne.className = ecart >= 0 ? 'note' : 'texte-alerte';
+    ligne.textContent = 'Écart estimé : ' + (ecart >= 0 ? '+' : '') + formaterMontant(ecart);
+    if (inv.frais > 0) ligne.textContent += ' · Frais : ' + formaterMontant(inv.frais);
+    if (inv.revenus > 0) ligne.textContent += ' · Revenus : ' + formaterMontant(inv.revenus);
+    carte.appendChild(ligne);
+  }
+
+  if (inv.notes) {
+    const notes = document.createElement('p');
+    notes.className = 'note';
+    notes.textContent = inv.notes;
+    carte.appendChild(notes);
+  }
+
+  if (!compacte && inv.apports.length) {
+    const historique = document.createElement('details');
+    historique.className = 'historique-cotisations';
+    const titreH = document.createElement('summary');
+    titreH.textContent = 'Historique des apports (' + inv.apports.length + ')';
+    historique.appendChild(titreH);
+    const ulApports = document.createElement('ul');
+    ulApports.className = 'liste-simple';
+    inv.apports.slice().sort(function (a, b) { return b.date.localeCompare(a.date); }).forEach(function (apport) {
+      const li = document.createElement('li');
+      li.className = 'ligne-cotisation';
+      const texte = document.createElement('span');
+      texte.textContent = formaterDateCourte(apport.date) + ' · ' + formaterMontant(apport.montant) +
+        (apport.note ? ' · ' + apport.note : '');
+      const retirer = document.createElement('button');
+      retirer.type = 'button';
+      retirer.className = 'btn btn-secondaire bouton-retirer-cotisation';
+      retirer.textContent = 'Retirer';
+      retirer.setAttribute('aria-label', 'Retirer l'apport de ' + formaterMontant(apport.montant));
+      retirer.addEventListener('click', function () { supprimerApport(inv.id, apport.id); });
+      li.append(texte, retirer);
+      ulApports.appendChild(li);
+    });
+    historique.appendChild(ulApports);
+    carte.appendChild(historique);
+  }
+
+  if (!compacte) {
+    const actions = document.createElement('div');
+    actions.className = 'actions-carte';
+    const ajouterApport = document.createElement('button');
+    ajouterApport.type = 'button';
+    ajouterApport.className = 'btn btn-principal';
+    ajouterApport.textContent = '+ Apport';
+    ajouterApport.addEventListener('click', function () { ouvrirFormulaireApport(inv.id); });
+    const modifier = document.createElement('button');
+    modifier.type = 'button';
+    modifier.className = 'btn btn-secondaire';
+    modifier.textContent = 'Modifier';
+    modifier.addEventListener('click', function () { ouvrirFormulaireInvestissement(inv.id); });
+    const supprimer = document.createElement('button');
+    supprimer.type = 'button';
+    supprimer.className = 'btn btn-secondaire';
+    supprimer.textContent = 'Supprimer';
+    supprimer.addEventListener('click', function () { supprimerInvestissement(inv.id); });
+    actions.append(ajouterApport, modifier, supprimer);
+    carte.appendChild(actions);
+  }
+  return carte;
+}
+
+function rendreInvestissements() {
+  const liste = document.getElementById('liste-investissements');
+  const vide = document.getElementById('investissements-vides');
+  if (!liste) return;
+  liste.replaceChildren();
+  vide.hidden = donnees.investissements.length > 0;
+  for (const inv of donnees.investissements) liste.appendChild(construireCarteInvestissement(inv, false));
+}
+
+function rendreResumeInvestissements() {
+  const conteneur = document.getElementById('resume-investissements');
+  if (!conteneur) return;
+  conteneur.replaceChildren();
+  if (!donnees.investissements.length) {
+    const note = document.createElement('p');
+    note.className = 'note';
+    note.textContent = 'Aucun investissement saisi.';
+    conteneur.appendChild(note);
+    return;
+  }
+  /* Afficher le total des apports et la valeur totale si disponible. */
+  let totalApports = 0;
+  let totalValeur = 0;
+  let tousAvecValeur = true;
+  donnees.investissements.forEach(function (inv) {
+    totalApports += apportsCumules(inv);
+    if (inv.valeurActuelle !== null) {
+      totalValeur += inv.valeurActuelle;
+    } else {
+      tousAvecValeur = false;
+    }
+  });
+  const resume = document.createElement('p');
+  resume.className = 'resume-financier';
+  resume.textContent = donnees.investissements.length + ' investissement(s) · Apports : ' + formaterMontant(totalApports) +
+    (tousAvecValeur ? ' · Valeur estimée totale : ' + formaterMontant(totalValeur) : '');
+  conteneur.appendChild(resume);
+  /* Cartes compactes (3 max). */
+  donnees.investissements.slice(0, 3).forEach(function (inv) {
+    conteneur.appendChild(construireCarteInvestissement(inv, true));
+  });
+}
+
+/* Identifiant de l'investissement en cours de modification ou null. */
+let idInvestissementModification = null;
+let idInvestissementApport = null;
+
+function ouvrirFormulaireInvestissement(id) {
+  idInvestissementModification = id || null;
+  const inv = id ? donnees.investissements.find(function (i) { return i.id === id; }) : null;
+  document.getElementById('investissement-nom').value = inv ? inv.nom : '';
+  document.getElementById('investissement-type').value = inv ? inv.type : '';
+  document.getElementById('investissement-valeur').value = inv && inv.valeurActuelle !== null ? inv.valeurActuelle : '';
+  document.getElementById('investissement-date-valeur').value = inv ? (inv.dateMiseAJourValeur || '') : '';
+  document.getElementById('investissement-frais').value = inv && inv.frais ? inv.frais : '';
+  document.getElementById('investissement-revenus').value = inv && inv.revenus ? inv.revenus : '';
+  document.getElementById('investissement-notes').value = inv ? (inv.notes || '') : '';
+  document.getElementById('titre-investissement').textContent = inv ? 'Modifier l'investissement' : 'Nouvel investissement';
+  document.getElementById('btn-supprimer-investissement').hidden = !inv;
+  effacerErreursInvestissement();
+  document.getElementById('voile-investissement').classList.remove('cache');
+  document.getElementById('investissement-nom').focus();
+}
+
+function effacerErreursInvestissement() {
+  document.querySelectorAll('#formulaire-investissement .message-erreur').forEach(function (el) { el.textContent = ''; });
+  document.querySelectorAll('#formulaire-investissement .invalide').forEach(function (el) { el.classList.remove('invalide'); });
+}
+
+function validerFormulaireInvestissement() {
+  effacerErreursInvestissement();
+  const nom = document.getElementById('investissement-nom').value.trim();
+  let valide = true;
+  if (!nom) {
+    document.getElementById('erreur-investissement-nom').textContent = 'Indique un nom.';
+    document.getElementById('investissement-nom').closest('.champ').classList.add('invalide');
+    valide = false;
+  }
+  const valeurBrut = document.getElementById('investissement-valeur').value.trim();
+  const valeurActuelle = valeurBrut === '' ? null : Number(valeurBrut);
+  if (valeurBrut !== '' && (!Number.isSafeInteger(valeurActuelle) || valeurActuelle < 0)) {
+    document.getElementById('erreur-investissement-valeur').textContent = 'Entre un montant entier positif ou laisse vide.';
+    document.getElementById('investissement-valeur').closest('.champ').classList.add('invalide');
+    valide = false;
+  }
+  const fraiBrut = document.getElementById('investissement-frais').value.trim();
+  const frais = fraiBrut === '' ? 0 : Number(fraiBrut);
+  if (fraiBrut !== '' && (!Number.isSafeInteger(frais) || frais < 0)) {
+    document.getElementById('erreur-investissement-frais').textContent = 'Entre un montant entier positif ou laisse vide.';
+    document.getElementById('investissement-frais').closest('.champ').classList.add('invalide');
+    valide = false;
+  }
+  const revenusBrut = document.getElementById('investissement-revenus').value.trim();
+  const revenus = revenusBrut === '' ? 0 : Number(revenusBrut);
+  if (revenusBrut !== '' && (!Number.isSafeInteger(revenus) || revenus < 0)) {
+    document.getElementById('erreur-investissement-revenus').textContent = 'Entre un montant entier positif ou laisse vide.';
+    document.getElementById('investissement-revenus').closest('.champ').classList.add('invalide');
+    valide = false;
+  }
+  if (!valide) return null;
+  return {
+    nom: nom,
+    type: document.getElementById('investissement-type').value.trim(),
+    valeurActuelle: valeurActuelle,
+    dateMiseAJourValeur: document.getElementById('investissement-date-valeur').value,
+    frais: frais,
+    revenus: revenus,
+    notes: document.getElementById('investissement-notes').value.trim()
+  };
+}
+
+function enregistrerInvestissement() {
+  const valeurs = validerFormulaireInvestissement();
+  if (!valeurs) return;
+  const avant = JSON.stringify(donnees);
+  if (idInvestissementModification) {
+    Object.assign(donnees.investissements.find(function (i) { return i.id === idInvestissementModification; }), valeurs);
+  } else {
+    donnees.investissements.push(Object.assign({ id: nouvelIdentifiant(), creeLe: Date.now(), apports: [] }, valeurs));
+  }
+  if (!enregistrerDonnees()) { donnees = JSON.parse(avant); rendreTout(); return; }
+  document.getElementById('voile-investissement').classList.add('cache');
+  rendreTout();
+}
+
+function supprimerInvestissement(id) {
+  const inv = donnees.investissements.find(function (i) { return i.id === id; });
+  if (!inv) return;
+  if (inv.apports.length > 0) {
+    alert('Cet investissement a des apports enregistrés. Retire les apports avant de supprimer l'investissement.');
+    return;
+  }
+  if (!confirm('Supprimer l'investissement « ' + inv.nom + ' » ?')) return;
+  const avant = JSON.stringify(donnees);
+  donnees.investissements = donnees.investissements.filter(function (i) { return i.id !== id; });
+  if (!enregistrerDonnees()) donnees = JSON.parse(avant);
+  rendreTout();
+}
+
+function ouvrirFormulaireApport(id) {
+  idInvestissementApport = id;
+  const inv = donnees.investissements.find(function (i) { return i.id === id; });
+  if (!inv) return;
+  document.getElementById('titre-apport').textContent = 'Ajouter un apport — ' + inv.nom;
+  document.getElementById('apport-montant').value = '';
+  document.getElementById('apport-date').value = aujourdhuiISO();
+  document.getElementById('apport-note').value = '';
+  document.getElementById('erreur-apport-montant').textContent = '';
+  document.getElementById('erreur-apport-date').textContent = '';
+  document.getElementById('voile-apport').classList.remove('cache');
+  document.getElementById('apport-montant').focus();
+}
+
+function enregistrerApport() {
+  const inv = donnees.investissements.find(function (i) { return i.id === idInvestissementApport; });
+  const montant = Number(document.getElementById('apport-montant').value);
+  const date = document.getElementById('apport-date').value || aujourdhuiISO();
+  document.getElementById('erreur-apport-montant').textContent = '';
+  document.getElementById('erreur-apport-date').textContent = '';
+  if (!inv) return;
+  if (!Number.isSafeInteger(montant) || montant < 1) {
+    document.getElementById('erreur-apport-montant').textContent = 'Entre un montant entier supérieur à zéro.';
+    return;
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > aujourdhuiISO()) {
+    document.getElementById('erreur-apport-date').textContent = 'Choisis une date valide qui n'est pas dans le futur.';
+    return;
+  }
+  const avant = JSON.stringify(donnees);
+  inv.apports.push({ id: nouvelIdentifiant(), montant: montant, date: date, note: document.getElementById('apport-note').value.trim(), creeLe: Date.now() });
+  if (!enregistrerDonnees()) { donnees = JSON.parse(avant); rendreTout(); return; }
+  document.getElementById('voile-apport').classList.add('cache');
+  rendreTout();
+}
+
+function supprimerApport(investissementId, apportId) {
+  const inv = donnees.investissements.find(function (i) { return i.id === investissementId; });
+  if (!inv) return;
+  const apport = inv.apports.find(function (a) { return a.id === apportId; });
+  if (!apport || !confirm('Retirer cet apport de ' + formaterMontant(apport.montant) + ' du ' + formaterDateCourte(apport.date) + ' ?')) return;
+  const avant = JSON.stringify(donnees);
+  inv.apports = inv.apports.filter(function (a) { return a.id !== apportId; });
+  if (!enregistrerDonnees()) { donnees = JSON.parse(avant); rendreTout(); return; }
+  rendreTout();
+}
+
+/* ---------- 9. Objectifs d'épargne et cotisations ---------- */
 
 function totalCotise(objectif) {
   return (objectif.montantInitial || 0) + objectif.cotisations.reduce(function (total, cotisation) { return total + cotisation.montant; }, 0);
@@ -1038,7 +1447,7 @@ function enregistrerAchatObjectif() {
   rendreTout();
 }
 
-/* ---------- 9. Tableau de bord (accueil) ---------- */
+/* ---------- 10. Tableau de bord (accueil) ---------- */
 
 /* Met à jour les totaux et le libellé de la période. */
 function rendreTableauDeBord() {
@@ -1074,6 +1483,7 @@ function rendreTableauDeBord() {
   rendreAlertesBudget();
   rendreResumeActivites();
   rendreResumeObjectifs();
+  rendreResumeInvestissements();
 }
 
 /* ---------- 10. Écran Transactions ---------- */
@@ -1784,6 +2194,7 @@ function rendreTout() {
   rendreActivites();
   rendreBudgets();
   rendreObjectifs();
+  rendreInvestissements();
   rendreTableauDeBord();
   remplirFiltreMois();
   rendreTransactions();
@@ -1809,6 +2220,7 @@ function installerEcouteurs() {
   document.getElementById('btn-nouveau-budget').addEventListener('click', function () { ouvrirFormulaireBudget(null); });
   document.getElementById('btn-nouvel-objectif').addEventListener('click', function () { ouvrirFormulaireObjectif(null); });
   document.getElementById('btn-cotisation-rapide').addEventListener('click', function () { ouvrirFormulaireCotisation(null); });
+  document.getElementById('btn-nouvel-investissement').addEventListener('click', function () { ouvrirFormulaireInvestissement(null); });
   document.getElementById('mois-budget').addEventListener('change', rendreBudgets);
   document.getElementById('budget-type').addEventListener('change', actualiserTypeBudget);
   document.getElementById('formulaire-activite').addEventListener('submit', function (e) {
@@ -1831,6 +2243,14 @@ function installerEcouteurs() {
     e.preventDefault();
     enregistrerAchatObjectif();
   });
+  document.getElementById('formulaire-investissement').addEventListener('submit', function (e) {
+    e.preventDefault();
+    enregistrerInvestissement();
+  });
+  document.getElementById('formulaire-apport').addEventListener('submit', function (e) {
+    e.preventDefault();
+    enregistrerApport();
+  });
   document.querySelectorAll('[data-fermer]').forEach(function (bouton) {
     bouton.addEventListener('click', function () {
       document.getElementById('voile-' + bouton.dataset.fermer).classList.add('cache');
@@ -1838,6 +2258,7 @@ function installerEcouteurs() {
   });
   document.getElementById('btn-supprimer-activite').addEventListener('click', function () { supprimerActivite(idActiviteModification); });
   document.getElementById('btn-supprimer-budget').addEventListener('click', function () { supprimerBudget(idBudgetModification); });
+  document.getElementById('btn-supprimer-investissement').addEventListener('click', function () { supprimerInvestissement(idInvestissementModification); });
 
   /* Boutons d'ajout rapide (accueil et écran Transactions).
      data-ouvrir contient 'depense', 'revenu' ou 'transfert'. */
@@ -1891,7 +2312,7 @@ function installerEcouteurs() {
       fermerFormulaire();
     }
   });
-  ['voile-activite', 'voile-budget', 'voile-objectif', 'voile-cotisation', 'voile-achat'].forEach(function (idVoile) {
+  ['voile-activite', 'voile-budget', 'voile-objectif', 'voile-cotisation', 'voile-achat', 'voile-investissement', 'voile-apport'].forEach(function (idVoile) {
     document.getElementById(idVoile).addEventListener('click', function (e) {
       if (e.target.id === idVoile) e.target.classList.add('cache');
     });
@@ -1901,11 +2322,9 @@ function installerEcouteurs() {
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
       fermerFormulaire();
-      document.getElementById('voile-activite').classList.add('cache');
-      document.getElementById('voile-budget').classList.add('cache');
-      document.getElementById('voile-objectif').classList.add('cache');
-      document.getElementById('voile-cotisation').classList.add('cache');
-      document.getElementById('voile-achat').classList.add('cache');
+      ['voile-activite', 'voile-budget', 'voile-objectif', 'voile-cotisation', 'voile-achat', 'voile-investissement', 'voile-apport'].forEach(function (idVoile) {
+        document.getElementById(idVoile).classList.add('cache');
+      });
     }
   });
 
@@ -1925,8 +2344,18 @@ function installerEcouteurs() {
 
   document.getElementById('btn-exporter').addEventListener('click', exporterSauvegarde);
   document.getElementById('btn-exporter-brut').addEventListener('click', exporterContenuBrut);
+  document.getElementById('btn-exporter-csv').addEventListener('click', exporterCSV);
   document.getElementById('fichier-sauvegarde').addEventListener('change', function (e) {
     restaurerSauvegarde(e.target.files[0]);
+  });
+  /* Bouton de rappel : ferme le bandeau. */
+  document.getElementById('btn-fermer-rappel').addEventListener('click', function () {
+    masquerRappelSauvegarde();
+  });
+  /* Accès rapide à l'export depuis le bandeau de rappel. */
+  document.getElementById('btn-rappel-exporter').addEventListener('click', function () {
+    afficherEcran('parametres');
+    exporterSauvegarde();
   });
 
   /* Paramètres : effacement complet des données. */
@@ -1951,6 +2380,8 @@ document.getElementById('date-fin').value = periode.fin;
 
 installerEcouteurs();
 rendreTout();
+/* Vérifier si un rappel de sauvegarde doit être affiché. */
+verifierRappelSauvegarde();
 
 /* Le service worker rend l'application installable et conserve
    une copie de l'interface pour la consultation hors ligne.
@@ -1962,3 +2393,7 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
     });
   });
 }
+
+/* Tableau de bord : rendr le résumé investissements après
+   le premier chargement complet. */
+rendreResumeInvestissements();
