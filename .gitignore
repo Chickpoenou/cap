@@ -1,0 +1,9 @@
+# Sauvegardes contenant des données financières personnelles
+cap-sauvegarde-*.json
+cap-stockage-brut-*.txt
+sauvegardes/
+
+# Fichiers générés par les systèmes d'exploitation
+.DS_Store
+Thumbs.db
+desktop.ini

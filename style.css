@@ -1,0 +1,552 @@
+/* ============================================================
+   Cap — feuille de style (étapes 1 et 2)
+   Mise en page simple : une colonne centrée, flexbox pour les
+   lignes, grid pour les cartes de totaux. Aucun framework.
+   ============================================================ */
+
+/* ---------- 1. Variables et base ---------- */
+
+/* Couleurs et valeurs réunies au même endroit : faciles à changer. */
+:root {
+  --fond: #f2f5f7;            /* arrière-plan général */
+  --carte: #ffffff;           /* fond des cartes */
+  --bordure: #d7dee3;         /* bordures et filets */
+  --texte: #22303a;           /* texte principal */
+  --texte-clair: #5c6b76;     /* texte secondaire */
+  --accent: #0e6e5c;          /* couleur principale (vert profond) */
+  --couleur-revenu: #0e7a4e;  /* vert pour les revenus */
+  --couleur-depense: #b3261e; /* rouge pour les dépenses */
+  --couleur-transfert: #5c6b76;
+  --rayon: 12px;              /* arrondi des cartes */
+}
+
+/* Le "box model" inclut les paddings dans les largeurs. */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0 auto;                 /* colonne centrée */
+  max-width: 760px;               /* largeur maximum sur grand écran */
+  font-family: system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+  background: var(--fond);
+  color: var(--texte);
+  line-height: 1.5;
+}
+
+/* Contour visible au clavier (accessibilité). */
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------- 2. En-tête ---------- */
+
+.entete {
+  display: flex;
+  justify-content: space-between; /* titre à gauche, roue dentée à droite */
+  align-items: center;
+  padding: 20px 16px 12px;
+}
+
+.entete h1 {
+  margin: 0;
+  font-size: 1.6rem;
+  letter-spacing: 0.05em;
+}
+
+.sous-titre {
+  margin: 0;
+  color: var(--texte-clair);
+  font-size: 0.9rem;
+}
+
+.btn-icone {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--bordure);
+  background: var(--carte);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+/* ---------- 3. Navigation par onglets ---------- */
+
+/* Barre collante : reste visible quand on fait défiler la page.
+   Sur petit écran, les onglets défilent horizontalement. */
+.navigation {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--fond);
+  border-bottom: 1px solid var(--bordure);
+  overflow-x: auto;
+  scrollbar-width: none;         /* Firefox : cacher la barre de défilement */
+}
+
+.navigation::-webkit-scrollbar {
+  display: none;                 /* Chrome : cacher la barre de défilement */
+}
+
+.onglet {
+  flex-shrink: 0;                /* les onglets gardent leur largeur */
+  padding: 8px 14px;
+  border: 1px solid var(--bordure);
+  border-radius: 999px;          /* pilule */
+  background: var(--carte);
+  color: var(--texte);
+  font-size: 15px;
+  white-space: nowrap;           /* le libellé ne passe jamais à la ligne */
+  cursor: pointer;
+}
+
+.onglet.actif {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+/* ---------- 4. Écrans et cartes ---------- */
+
+main {
+  padding: 16px;
+}
+
+/* Un seul écran visible à la fois : celui qui porte la classe "actif". */
+.ecran {
+  display: none;
+}
+
+.ecran.actif {
+  display: block;
+}
+
+.carte {
+  background: var(--carte);
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.carte h2 {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+}
+
+.ligne-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.note {
+  color: var(--texte-clair);
+  font-size: 0.85rem;
+  margin: 4px 0 12px;
+}
+
+.vide {
+  color: var(--texte-clair);
+  font-style: italic;
+}
+
+.liste-simple {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.carte-danger {
+  border-color: #e7b8b4;
+}
+
+.alerte-stockage {
+  border-color: #e7b8b4;
+  background: #fff7f6;
+  color: #7a211b;
+}
+
+.actions-sauvegarde {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bouton-fichier {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.actions-sauvegarde .btn {
+  flex: 1 1 180px;
+}
+
+/* ---------- 5. Boutons ---------- */
+
+.btn {
+  flex: 1;                        /* les boutons se partagent la largeur */
+  padding: 12px 16px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 48px;               /* cible confortable pour le doigt */
+}
+
+.btn-depense {
+  background: var(--couleur-depense);
+  color: #ffffff;
+}
+
+.btn-revenu {
+  background: var(--couleur-revenu);
+  color: #ffffff;
+}
+
+/* Les troisièmes boutons (Transfert, Cotisation) : neutres. */
+.ajout-rapide .btn:not(.btn-depense):not(.btn-revenu) {
+  background: var(--carte);
+  border-color: var(--bordure);
+  color: var(--texte);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-principal {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.btn-secondaire {
+  background: var(--carte);
+  border-color: var(--bordure);
+  color: var(--texte);
+}
+
+.btn-danger {
+  background: var(--couleur-depense);
+  color: #ffffff;
+}
+
+.ajout-rapide {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+/* ---------- 6. Choix de la période (accueil) ---------- */
+
+.choix-periode {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  padding: 6px 12px;
+  border: 1px solid var(--bordure);
+  border-radius: 999px;
+  background: var(--carte);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.chip.actif {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+.dates-personnalisees {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  font-size: 14px;
+  color: var(--texte-clair);
+}
+
+.libelle-periode {
+  margin: 10px 0 0;
+  font-weight: 600;
+}
+
+/* ---------- 7. Cartes de totaux ---------- */
+
+/* Trois cartes de largeur égale ; passent à la verticale
+   si l'écran est trop étroit. */
+.grille-totaux {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.total {
+  text-align: center;
+}
+
+.total-libelle {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--texte-clair);
+}
+
+.total-montant {
+  margin: 4px 0 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+/* Le solde change de couleur selon son signe (la classe est
+   ajoutée par app.js). */
+.total-solde .total-montant.positif {
+  color: var(--couleur-revenu);
+}
+
+.total-solde .total-montant.negatif {
+  color: var(--couleur-depense);
+}
+
+/* ---------- 8. Liste des transactions ---------- */
+
+.resume-mois {
+  margin: 8px 0 4px;
+  font-size: 0.85rem;
+  color: var(--texte-clair);
+}
+
+.liste-transactions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Titre de journée dans l'historique. */
+.titre-jour {
+  padding: 14px 0 4px;
+  border-bottom: 1px solid var(--bordure);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--texte-clair);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.transaction {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid #eef2f4;
+}
+
+/* Le corps de la ligne est lui-même un bouton : toucher la
+   ligne ouvre la modification. */
+.corps-transaction {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  background: none;
+  border: none;
+  font: inherit;                  /* le bouton hérite de la police de la page */
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Pastille ronde avec le signe +, − ou ⇄. */
+.t-sens {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-weight: 700;
+}
+
+.type-revenu { background: #e0f2e9; color: var(--couleur-revenu); }
+.type-depense { background: #fdecea; color: var(--couleur-depense); }
+.type-transfert { background: #e8edf1; color: var(--couleur-transfert); }
+
+.t-infos {
+  flex: 1;
+  min-width: 0;                   /* permet de couper les textes longs */
+}
+
+.t-infos strong {
+  display: block;
+  font-size: 0.95rem;
+}
+
+.t-infos small {
+  color: var(--texte-clair);
+  font-size: 0.8rem;
+}
+
+.t-montant {
+  flex-shrink: 0;
+  font-weight: 700;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+/* Même code couleur que les pastilles, pour les montants. */
+.t-montant.type-revenu { color: var(--couleur-revenu); }
+.t-montant.type-depense { color: var(--couleur-depense); }
+.t-montant.type-transfert { color: var(--couleur-transfert); }
+
+.bouton-supprimer {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--texte-clair);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.bouton-supprimer:hover {
+  background: #fdecea;
+  color: var(--couleur-depense);
+}
+
+/* ---------- 9. Formulaire en superposition ---------- */
+
+/* Voile sombre plein écran ; la carte du formulaire remonte
+   du bas sur téléphone, est centrée sur grand écran. */
+.voile {
+  position: fixed;
+  inset: 0;                       /* occupe tout l'écran */
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(34, 48, 58, 0.5);
+}
+
+.voile-carte {
+  width: 100%;
+  max-width: 560px;
+  max-height: 92vh;               /* la carte ne dépasse jamais l'écran */
+  overflow-y: auto;               /* ...et défile si elle est trop haute */
+  background: var(--carte);
+  border-radius: 16px 16px 0 0;
+  padding: 20px;
+}
+
+.voile-carte h2 {
+  margin: 0 0 14px;
+}
+
+.champ {
+  margin-bottom: 12px;
+}
+
+.champ label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.champ input,
+.champ select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--bordure);
+  border-radius: 8px;
+  background: #ffffff;
+  font: inherit;
+  font-size: 16px;                /* 16px évite le zoom automatique sur iOS */
+}
+
+/* Champs en erreur : bordure + fond très léger. */
+.champ.invalide input,
+.champ.invalide select {
+  border-color: var(--couleur-depense);
+  background: #fff8f7;
+}
+
+.message-erreur {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: var(--couleur-depense);
+}
+
+.obligatoire {
+  color: var(--couleur-depense);
+}
+
+.actions-formulaire {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* ---------- 10. Divers ---------- */
+
+.cache {
+  display: none !important;
+}
+
+.pied {
+  padding: 20px 16px 32px;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--texte-clair);
+}
+
+/* ---------- 11. Ajustements pour grand écran ---------- */
+
+@media (min-width: 700px) {
+  .entete {
+    padding: 28px 24px 16px;
+  }
+
+  .navigation {
+    padding: 10px 24px;
+  }
+
+  main {
+    padding: 24px;
+  }
+
+  /* Le formulaire devient une fenêtre centrée... */
+  .voile {
+    align-items: center;
+    padding: 24px;
+  }
+
+  .voile-carte {
+    border-radius: 16px;
+  }
+
+  /* ...et ses champs se placent sur deux colonnes.
+     Les champs "large" occupent toute la largeur. */
+  #formulaire-transaction {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 16px;
+  }
+
+  .champ-large {
+    grid-column: 1 / -1;
+  }
+}

@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0e6e5c">
+  <title>Cap — suivi des activités et des finances</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="cap.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="cap.svg">
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+
+  <!-- En-tête : nom de l'application + accès aux paramètres -->
+  <header class="entete">
+    <div>
+      <h1>Cap</h1>
+      <p class="sous-titre">Suivi des activités et des finances</p>
+    </div>
+    <button type="button" id="btn-parametres" class="btn-icone" title="Paramètres" aria-label="Paramètres">⚙</button>
+  </header>
+
+  <!-- Navigation : une barre d'onglets, défilable sur petit écran -->
+  <nav class="navigation" aria-label="Navigation principale">
+    <button type="button" class="onglet actif" data-ecran="accueil">Accueil</button>
+    <button type="button" class="onglet" data-ecran="transactions">Transactions</button>
+    <button type="button" class="onglet" data-ecran="activites">Activités</button>
+    <button type="button" class="onglet" data-ecran="budgets">Budgets</button>
+    <button type="button" class="onglet" data-ecran="objectifs">Objectifs</button>
+    <button type="button" class="onglet" data-ecran="investissements">Investissements</button>
+    <button type="button" class="onglet" data-ecran="rapports">Rapports</button>
+  </nav>
+
+  <main>
+
+    <div id="alerte-stockage" class="carte alerte-stockage" role="alert" hidden></div>
+
+    <!-- ============ ÉCRAN 1 : ACCUEIL / TABLEAU DE BORD ============ -->
+    <section id="ecran-accueil" class="ecran actif">
+
+      <!-- Ajout rapide : gros boutons accessibles au doigt -->
+      <div class="ajout-rapide">
+        <button type="button" class="btn btn-depense" data-ouvrir="depense">− Dépense</button>
+        <button type="button" class="btn btn-revenu" data-ouvrir="revenu">+ Revenu</button>
+        <button type="button" class="btn" disabled title="Disponible à l'étape 4 du plan">Cotisation</button>
+      </div>
+      <p class="note">La cotisation vers un objectif d'épargne arrivera avec les objectifs (étape 4 du plan).</p>
+
+      <!-- Choix de la période affichée -->
+      <div class="carte">
+        <h2>Période</h2>
+        <div class="choix-periode">
+          <button type="button" class="chip actif" data-periode="mois">Mois en cours</button>
+          <button type="button" class="chip" data-periode="moisPrecedent">Mois précédent</button>
+          <button type="button" class="chip" data-periode="perso">Personnalisée</button>
+        </div>
+        <div id="dates-personnalisees" class="dates-personnalisees cache">
+          <label>Du <input type="date" id="date-debut"></label>
+          <label>au <input type="date" id="date-fin"></label>
+        </div>
+        <p id="libelle-periode" class="libelle-periode"></p>
+      </div>
+
+      <!-- Totaux de la période -->
+      <div class="grille-totaux">
+        <div class="carte total">
+          <p class="total-libelle">Revenus reçus</p>
+          <p class="total-montant" id="total-revenus">0 FCFA</p>
+        </div>
+        <div class="carte total">
+          <p class="total-libelle">Dépenses payées</p>
+          <p class="total-montant" id="total-depenses">0 FCFA</p>
+        </div>
+        <div class="carte total total-solde">
+          <p class="total-libelle">Solde net</p>
+          <p class="total-montant" id="total-solde">0 FCFA</p>
+        </div>
+      </div>
+
+      <!-- Alertes (les budgets arrivent à l'étape 3) -->
+      <div class="carte">
+        <h2>Alertes</h2>
+        <ul class="liste-simple">
+          <li>Aucune alerte — aucun budget n'est encore défini (étape 3 du plan).</li>
+        </ul>
+      </div>
+
+      <!-- Résumés des autres modules, pour l'instant en attente -->
+      <div class="carte">
+        <h2>Activités en cours</h2>
+        <p class="note">Aucune activité pour l'instant. La création d'activités arrive à l'étape 3 du plan.</p>
+      </div>
+
+      <div class="carte">
+        <h2>Objectifs d'épargne</h2>
+        <p class="note">Les objectifs d'épargne et leurs cotisations arrivent à l'étape 4 du plan.</p>
+      </div>
+
+      <div class="carte">
+        <h2>Investissements</h2>
+        <p class="note">Le suivi des investissements arrive à l'étape 5 du plan.</p>
+      </div>
+    </section>
+
+    <!-- ============ ÉCRAN 2 : TRANSACTIONS ============ -->
+    <section id="ecran-transactions" class="ecran">
+      <div class="ajout-rapide">
+        <button type="button" class="btn btn-depense" data-ouvrir="depense">− Dépense</button>
+        <button type="button" class="btn btn-revenu" data-ouvrir="revenu">+ Revenu</button>
+        <button type="button" class="btn" data-ouvrir="transfert">⇄ Transfert</button>
+      </div>
+
+      <div class="carte">
+        <div class="ligne-flex">
+          <h2>Historique</h2>
+          <select id="filtre-mois" aria-label="Filtrer par mois"></select>
+        </div>
+        <p id="resume-mois" class="resume-mois"></p>
+        <ul id="liste-transactions" class="liste-transactions"></ul>
+        <p id="transactions-vide" class="vide">Aucune transaction pour ce mois. Utilise les boutons ci-dessus pour enregistrer une dépense ou un revenu.</p>
+      </div>
+    </section>
+
+    <!-- ============ ÉCRAN 3 : ACTIVITÉS (étape 3 du plan) ============ -->
+    <section id="ecran-activites" class="ecran">
+      <div class="carte">
+        <h2>Activités et projets</h2>
+        <p>Cet écran sera construit à l'étape 3 du plan. Il permettra de :</p>
+        <ul class="liste-simple">
+          <li>créer une activité (génie civil, soutien scolaire, création de sites, travaux de maison, sport…) ;</li>
+          <li>lui associer des revenus, des dépenses et des heures travaillées ;</li>
+          <li>consulter son résultat de trésorerie, son reste de budget et son revenu net par heure.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ============ ÉCRAN 4 : BUDGETS ET ALERTES (étape 3 du plan) ============ -->
+    <section id="ecran-budgets" class="ecran">
+      <div class="carte">
+        <h2>Budgets et alertes</h2>
+        <p>Cet écran sera construit à l'étape 3 du plan. Il permettra de :</p>
+        <ul class="liste-simple">
+          <li>fixer un budget mensuel général ;</li>
+          <li>fixer des budgets par catégorie ou par activité ;</li>
+          <li>recevoir des alertes à 80 % du budget consommé, puis au dépassement.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ============ ÉCRAN 5 : OBJECTIFS D'ÉPARGNE (étape 4 du plan) ============ -->
+    <section id="ecran-objectifs" class="ecran">
+      <div class="carte">
+        <h2>Objectifs d'épargne</h2>
+        <p>Cet écran sera construit à l'étape 4 du plan. Il permettra de :</p>
+        <ul class="liste-simple">
+          <li>créer un objectif d'achat avec un prix cible et une date souhaitée ;</li>
+          <li>enregistrer des cotisations et voir le montant restant recalculé ;</li>
+          <li>enregistrer l'achat effectué (une seule dépense réelle, sans compter les cotisations comme dépenses).</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ============ ÉCRAN 6 : INVESTISSEMENTS (étape 5 du plan) ============ -->
+    <section id="ecran-investissements" class="ecran">
+      <div class="carte">
+        <h2>Investissements</h2>
+        <p>Cet écran sera construit à l'étape 5 du plan. Il permettra de :</p>
+        <ul class="liste-simple">
+          <li>suivre un investissement : montant investi, apports, valeur actuelle saisie à la main ;</li>
+          <li>voir l'écart estimé entre la valeur saisie et les apports cumulés.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ============ ÉCRAN 7 : RAPPORTS (étape 5 du plan) ============ -->
+    <section id="ecran-rapports" class="ecran">
+      <div class="carte">
+        <h2>Rapports</h2>
+        <p>Cet écran sera construit à l'étape 5 du plan. Il permettra de :</p>
+        <ul class="liste-simple">
+          <li>consulter les revenus, dépenses et résultats nets par mois, catégorie ou activité ;</li>
+          <li>comparer les prévisions aux résultats réels ;</li>
+          <li>exporter les données en CSV (étape 6 pour la sauvegarde complète).</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ============ ÉCRAN 8 : PARAMÈTRES ============ -->
+    <section id="ecran-parametres" class="ecran">
+      <div class="carte">
+        <h2>Sauvegarde et restauration</h2>
+        <p>Les données restent sur cet appareil. Exporte régulièrement une sauvegarde JSON et conserve-la dans un endroit sûr.</p>
+        <div class="actions-sauvegarde">
+          <button type="button" class="btn btn-principal" id="btn-exporter">Exporter une sauvegarde</button>
+          <label class="btn btn-secondaire bouton-fichier" for="fichier-sauvegarde">Restaurer une sauvegarde</label>
+          <input type="file" id="fichier-sauvegarde" accept=".json,application/json" hidden>
+          <button type="button" class="btn btn-secondaire" id="btn-exporter-brut">Exporter le contenu brut du stockage</button>
+        </div>
+        <p id="etat-sauvegarde" class="note" aria-live="polite"></p>
+      </div>
+
+      <div class="carte">
+        <h2>Paramètres</h2>
+        <p><strong>Devise :</strong> FCFA (XOF)</p>
+        <p><strong>Catégories de dépenses :</strong></p>
+        <ul id="liste-categories-parametres" class="liste-simple"></ul>
+        <p class="note">La sauvegarde JSON est disponible. La modification des catégories et l'export CSV seront ajoutés dans une prochaine étape.</p>
+      </div>
+
+      <div class="carte carte-danger">
+        <h2>Zone sensible</h2>
+        <p>Le bouton ci-dessous efface toutes les données enregistrées sur cet appareil. Cette action est définitive.</p>
+        <button type="button" class="btn btn-danger" id="btn-effacer-donnees">Effacer toutes les données</button>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="pied">
+    <p>Cap — version 0.2 (étapes 1 et 2). Données enregistrées uniquement sur cet appareil ; pense à les sauvegarder.</p>
+  </footer>
+
+  <!-- ============ FORMULAIRE DE TRANSACTION (superposition) ============ -->
+  <section id="voile-formulaire" class="voile cache" role="dialog" aria-modal="true" aria-labelledby="titre-formulaire">
+    <div class="voile-carte">
+      <h2 id="titre-formulaire">Ajouter une transaction</h2>
+
+      <form id="formulaire-transaction" novalidate>
+
+        <div class="champ">
+          <label for="champ-type">Type <span class="obligatoire">*</span></label>
+          <select id="champ-type">
+            <option value="depense">Dépense</option>
+            <option value="revenu">Revenu</option>
+            <option value="transfert">Transfert interne</option>
+          </select>
+        </div>
+
+        <div class="champ">
+          <label for="champ-montant">Montant (FCFA) <span class="obligatoire">*</span></label>
+          <input type="number" id="champ-montant" inputmode="numeric" min="1" step="1" placeholder="ex : 1500">
+          <small class="message-erreur" id="erreur-montant"></small>
+        </div>
+
+        <div class="champ">
+          <label for="champ-date">Date <span class="obligatoire">*</span></label>
+          <input type="date" id="champ-date">
+          <small class="message-erreur" id="erreur-date"></small>
+        </div>
+
+        <div class="champ champ-transfert cache">
+          <label for="champ-source">Depuis <span class="obligatoire">*</span></label>
+          <input type="text" id="champ-source" placeholder="ex : argent disponible">
+          <small class="message-erreur" id="erreur-source"></small>
+        </div>
+
+        <div class="champ champ-transfert cache">
+          <label for="champ-destination">Vers <span class="obligatoire">*</span></label>
+          <input type="text" id="champ-destination" placeholder="ex : épargne téléphone">
+          <small class="message-erreur" id="erreur-destination"></small>
+        </div>
+
+        <div class="champ">
+          <label for="champ-categorie">Catégorie</label>
+          <select id="champ-categorie"></select>
+          <small class="message-erreur" id="erreur-categorie"></small>
+        </div>
+
+        <div class="champ">
+          <label for="champ-activite">Activité liée</label>
+          <select id="champ-activite"></select>
+        </div>
+
+        <div class="champ">
+          <label for="champ-moyen">Moyen de paiement</label>
+          <input type="text" id="champ-moyen" placeholder="ex : espèces, Mobile Money">
+        </div>
+
+        <div class="champ champ-large">
+          <label for="champ-note">Note</label>
+          <input type="text" id="champ-note" placeholder="ex : taxi pour le cours de maths">
+        </div>
+
+        <div class="champ champ-large">
+          <label for="champ-justificatif">Justificatif (référence ou lien)</label>
+          <input type="text" id="champ-justificatif">
+        </div>
+
+        <div class="actions-formulaire champ-large">
+          <button type="button" class="btn btn-secondaire" id="btn-annuler">Annuler</button>
+          <button type="submit" class="btn btn-principal" id="btn-enregistrer">Enregistrer</button>
+          <button type="button" class="btn btn-danger" id="btn-supprimer" hidden>Supprimer</button>
+        </div>
+
+      </form>
+    </div>
+  </section>
+
+</body>
+</html>

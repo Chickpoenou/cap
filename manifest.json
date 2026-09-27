@@ -1,0 +1,19 @@
+{
+  "name": "Cap — suivi des activités et des finances",
+  "short_name": "Cap",
+  "description": "Suivi personnel des activités, revenus, dépenses et objectifs d'épargne.",
+  "lang": "fr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f2f5f7",
+  "theme_color": "#0e6e5c",
+  "icons": [
+    {
+      "src": "./cap.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
