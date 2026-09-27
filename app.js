@@ -679,7 +679,7 @@ function rendreAlertesBudget() {
     vide.textContent = 'Pour afficher les alertes de budget mensuel, choisis une période dans un seul mois.';
     vide.hidden = false;
   } else {
-    vide.textContent = totalAlertes ? '' : 'Aucune alerte de budget ou d'objectif pour cette période.';
+    vide.textContent = totalAlertes ? '' : "Aucune alerte de budget ou d'objectif pour cette période.";
     vide.hidden = totalAlertes > 0;
   }
 
@@ -854,7 +854,7 @@ function construireCarteInvestissement(inv, compacte) {
       retirer.type = 'button';
       retirer.className = 'btn btn-secondaire bouton-retirer-cotisation';
       retirer.textContent = 'Retirer';
-      retirer.setAttribute('aria-label', 'Retirer l'apport de ' + formaterMontant(apport.montant));
+      retirer.setAttribute('aria-label', "Retirer l'apport de " + formaterMontant(apport.montant));
       retirer.addEventListener('click', function () { supprimerApport(inv.id, apport.id); });
       li.append(texte, retirer);
       ulApports.appendChild(li);
@@ -944,7 +944,7 @@ function ouvrirFormulaireInvestissement(id) {
   document.getElementById('investissement-frais').value = inv && inv.frais ? inv.frais : '';
   document.getElementById('investissement-revenus').value = inv && inv.revenus ? inv.revenus : '';
   document.getElementById('investissement-notes').value = inv ? (inv.notes || '') : '';
-  document.getElementById('titre-investissement').textContent = inv ? 'Modifier l'investissement' : 'Nouvel investissement';
+  document.getElementById('titre-investissement').textContent = inv ? "Modifier l'investissement" : 'Nouvel investissement';
   document.getElementById('btn-supprimer-investissement').hidden = !inv;
   effacerErreursInvestissement();
   document.getElementById('voile-investissement').classList.remove('cache');
@@ -1016,10 +1016,10 @@ function supprimerInvestissement(id) {
   const inv = donnees.investissements.find(function (i) { return i.id === id; });
   if (!inv) return;
   if (inv.apports.length > 0) {
-    alert('Cet investissement a des apports enregistrés. Retire les apports avant de supprimer l'investissement.');
+    alert("Cet investissement a des apports enregistrés. Retire les apports avant de supprimer l'investissement.");
     return;
   }
-  if (!confirm('Supprimer l'investissement « ' + inv.nom + ' » ?')) return;
+  if (!confirm("Supprimer l'investissement « " + inv.nom + ' » ?')) return;
   const avant = JSON.stringify(donnees);
   donnees.investissements = donnees.investissements.filter(function (i) { return i.id !== id; });
   if (!enregistrerDonnees()) donnees = JSON.parse(avant);
@@ -1052,7 +1052,7 @@ function enregistrerApport() {
     return;
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > aujourdhuiISO()) {
-    document.getElementById('erreur-apport-date').textContent = 'Choisis une date valide qui n'est pas dans le futur.';
+    document.getElementById('erreur-apport-date').textContent = "Choisis une date valide qui n'est pas dans le futur.";
     return;
   }
   const avant = JSON.stringify(donnees);
@@ -1484,6 +1484,126 @@ function rendreTableauDeBord() {
   rendreResumeActivites();
   rendreResumeObjectifs();
   rendreResumeInvestissements();
+}
+
+/* ---------- 10bis. Rapports (§4.7 du cahier des charges) ---------- */
+
+/* Mois choisi ('AAAA-MM'), ou null si "Toute la période" est cochée. */
+function moisRapportChoisi() {
+  if (document.getElementById('rapport-toute-periode').checked) return null;
+  return document.getElementById('rapport-mois').value || aujourdhuiISO().slice(0, 7);
+}
+
+/* Transactions à prendre en compte : celles du mois choisi,
+   ou toutes si "Toute la période" est cochée. */
+function transactionsRapport() {
+  const mois = moisRapportChoisi();
+  if (mois === null) return donnees.transactions;
+  return donnees.transactions.filter(function (t) { return t.date.slice(0, 7) === mois; });
+}
+
+/* Construit une petite carte de résumé "titre + une ligne de chiffres",
+   réutilisée pour les activités, budgets, objectifs et investissements
+   du rapport. alerte ajoute la classe texte-alerte à la ligne. */
+function carteResumeRapport(titre, texte, alerte) {
+  const carte = document.createElement('div');
+  carte.className = 'carte carte-compacte carte-element';
+  const h3 = document.createElement('h3');
+  h3.textContent = titre;
+  const p = document.createElement('p');
+  p.className = alerte ? 'texte-alerte' : 'resume-financier';
+  p.textContent = texte;
+  carte.append(h3, p);
+  return carte;
+}
+
+function rendreRapports() {
+  const mois = moisRapportChoisi();
+  const transactions = transactionsRapport();
+  const resume = totaux(transactions);
+
+  document.getElementById('rapport-libelle-periode').textContent = mois
+    ? formaterMoisAnnee(mois + '-01')
+    : 'Toute la période enregistrée.';
+
+  document.getElementById('rapport-total-revenus').textContent = formaterMontant(resume.revenus);
+  document.getElementById('rapport-total-depenses').textContent = formaterMontant(resume.depenses);
+  const elementSolde = document.getElementById('rapport-total-solde');
+  elementSolde.textContent = (resume.solde > 0 ? '+' : '') + formaterMontant(resume.solde);
+  elementSolde.classList.toggle('positif', resume.solde > 0);
+  elementSolde.classList.toggle('negatif', resume.solde < 0);
+
+  /* Dépenses par catégorie, triées de la plus grosse à la plus petite. */
+  const parCategorie = {};
+  for (const t of transactions) {
+    if (t.type !== 'depense') continue;
+    const cle = t.categorie || 'Sans catégorie';
+    parCategorie[cle] = (parCategorie[cle] || 0) + t.montant;
+  }
+  const categories = Object.keys(parCategorie).sort(function (a, b) { return parCategorie[b] - parCategorie[a]; });
+  const conteneurCategories = document.getElementById('rapport-categories');
+  conteneurCategories.replaceChildren();
+  for (const nom of categories) {
+    const ligne = document.createElement('p');
+    ligne.className = 'ligne-flex';
+    const libelle = document.createElement('span');
+    libelle.textContent = nom;
+    const montant = document.createElement('strong');
+    montant.textContent = formaterMontant(parCategorie[nom]);
+    ligne.append(libelle, montant);
+    conteneurCategories.appendChild(ligne);
+  }
+  document.getElementById('rapport-categories-vide').hidden = categories.length > 0;
+
+  /* Résultat par activité, sur les transactions de la période choisie. */
+  const conteneurActivites = document.getElementById('rapport-activites');
+  conteneurActivites.replaceChildren();
+  for (const activite of donnees.activites) {
+    const chiffres = totaux(transactions.filter(function (t) { return t.activiteId === activite.id; }));
+    let texte = 'Revenus : ' + formaterMontant(chiffres.revenus) +
+      ' · Dépenses : ' + formaterMontant(chiffres.depenses) +
+      ' · Résultat : ' + formaterMontant(chiffres.solde);
+    if (activite.heures > 0) texte += ' · ' + formaterMontant(Math.round(chiffres.solde / activite.heures)) + '/h';
+    conteneurActivites.appendChild(carteResumeRapport(activite.nom, texte, false));
+  }
+  document.getElementById('rapport-activites-vide').hidden = donnees.activites.length > 0;
+
+  /* Budgets et dépassements : seulement pertinents pour un mois précis. */
+  const conteneurBudgets = document.getElementById('rapport-budgets');
+  conteneurBudgets.replaceChildren();
+  const budgetsMois = mois ? donnees.budgets.filter(function (b) { return b.mois === mois; }) : [];
+  for (const budget of budgetsMois) {
+    const utilise = depensesBudget(budget);
+    const depasse = utilise > budget.montant;
+    const texte = formaterMontant(utilise) + ' dépensés sur ' + formaterMontant(budget.montant) +
+      (depasse ? ' — dépassé de ' + formaterMontant(utilise - budget.montant) : '');
+    conteneurBudgets.appendChild(carteResumeRapport(nomPorteeBudget(budget), texte, depasse));
+  }
+  document.getElementById('rapport-budgets-vide').hidden = budgetsMois.length > 0;
+
+  /* Progrès des objectifs d'épargne (cumul global, indépendant du mois choisi). */
+  const conteneurObjectifs = document.getElementById('rapport-objectifs');
+  conteneurObjectifs.replaceChildren();
+  for (const objectif of donnees.objectifs) {
+    const cotise = totalCotise(objectif);
+    const progression = Math.min(100, Math.round((cotise / objectif.cible) * 100));
+    const texte = formaterMontant(cotise) + ' sur ' + formaterMontant(objectif.cible) +
+      ' (' + progression + ' %) — reste ' + formaterMontant(montantRestantObjectif(objectif));
+    conteneurObjectifs.appendChild(carteResumeRapport(objectif.nom, texte, false));
+  }
+  document.getElementById('rapport-objectifs-vide').hidden = donnees.objectifs.length > 0;
+
+  /* Investissements : apports cumulés, valeur saisie, écart estimé. */
+  const conteneurInvestissements = document.getElementById('rapport-investissements');
+  conteneurInvestissements.replaceChildren();
+  for (const inv of donnees.investissements) {
+    const ecart = ecartEstime(inv);
+    let texte = 'Apports : ' + formaterMontant(apportsCumules(inv));
+    texte += inv.valeurActuelle !== null ? ' · Valeur estimée : ' + formaterMontant(inv.valeurActuelle) : ' · Valeur non saisie';
+    if (ecart !== null) texte += ' · Écart : ' + (ecart > 0 ? '+' : '') + formaterMontant(ecart);
+    conteneurInvestissements.appendChild(carteResumeRapport(inv.nom, texte, false));
+  }
+  document.getElementById('rapport-investissements-vide').hidden = donnees.investissements.length > 0;
 }
 
 /* ---------- 10. Écran Transactions ---------- */
@@ -2199,6 +2319,7 @@ function rendreTout() {
   remplirFiltreMois();
   rendreTransactions();
   rendreParametres();
+  rendreRapports();
 }
 
 /* Associe chaque bouton de la page à sa fonction. */
@@ -2222,6 +2343,12 @@ function installerEcouteurs() {
   document.getElementById('btn-cotisation-rapide').addEventListener('click', function () { ouvrirFormulaireCotisation(null); });
   document.getElementById('btn-nouvel-investissement').addEventListener('click', function () { ouvrirFormulaireInvestissement(null); });
   document.getElementById('mois-budget').addEventListener('change', rendreBudgets);
+  document.getElementById('rapport-mois').addEventListener('change', rendreRapports);
+  document.getElementById('rapport-toute-periode').addEventListener('change', function () {
+    document.getElementById('rapport-mois').disabled = this.checked;
+    rendreRapports();
+  });
+  document.getElementById('btn-rapport-csv').addEventListener('click', exporterCSV);
   document.getElementById('budget-type').addEventListener('change', actualiserTypeBudget);
   document.getElementById('formulaire-activite').addEventListener('submit', function (e) {
     e.preventDefault();
@@ -2370,6 +2497,7 @@ chargerDonnees();
 if (stockageEnErreur) afficherErreurStockage();
 moisFiltre = aujourdhuiISO().slice(0, 7);
 document.getElementById('mois-budget').value = aujourdhuiISO().slice(0, 7);
+document.getElementById('rapport-mois').value = aujourdhuiISO().slice(0, 7);
 
 /* Valeurs de départ de la période personnalisée : tout le mois
    en cours (pratique si l'on veut juste raccourcir la période). */

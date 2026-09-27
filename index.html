@@ -167,16 +167,66 @@
       </div>
     </section>
 
-    <!-- ============ ÉCRAN 7 : RAPPORTS (étape 5 du plan) ============ -->
+    <!-- ============ ÉCRAN 7 : RAPPORTS ============ -->
     <section id="ecran-rapports" class="ecran">
       <div class="carte">
-        <h2>Rapports</h2>
-        <p>Cet écran sera construit à l'étape 5 du plan. Il permettra de :</p>
-        <ul class="liste-simple">
-          <li>consulter les revenus, dépenses et résultats nets par mois, catégorie ou activité ;</li>
-          <li>comparer les prévisions aux résultats réels ;</li>
-          <li>exporter les données en CSV (étape 6 pour la sauvegarde complète).</li>
-        </ul>
+        <div class="ligne-flex">
+          <div><h2>Rapports</h2><p class="note">Choisis un mois ou toute la période pour consulter les résultats.</p></div>
+          <button type="button" class="btn btn-secondaire" id="btn-rapport-csv">Exporter les transactions CSV</button>
+        </div>
+        <div class="filtre-mois-budget">
+          <label>Mois <input type="month" id="rapport-mois"></label>
+          <label class="case-a-cocher"><input type="checkbox" id="rapport-toute-periode"> Toute la période</label>
+        </div>
+        <p id="rapport-libelle-periode" class="libelle-periode"></p>
+      </div>
+
+      <div class="carte">
+        <h2>Revenus, dépenses et résultat</h2>
+        <div class="grille-totaux">
+          <div class="carte total">
+            <p class="total-libelle">Revenus reçus</p>
+            <p class="total-montant" id="rapport-total-revenus">0 FCFA</p>
+          </div>
+          <div class="carte total">
+            <p class="total-libelle">Dépenses payées</p>
+            <p class="total-montant" id="rapport-total-depenses">0 FCFA</p>
+          </div>
+          <div class="carte total total-solde">
+            <p class="total-libelle">Résultat net</p>
+            <p class="total-montant" id="rapport-total-solde">0 FCFA</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="carte">
+        <h2>Dépenses par catégorie</h2>
+        <div id="rapport-categories"></div>
+        <p id="rapport-categories-vide" class="vide">Aucune dépense sur cette période.</p>
+      </div>
+
+      <div class="carte">
+        <h2>Résultat par activité</h2>
+        <div id="rapport-activites"></div>
+        <p id="rapport-activites-vide" class="vide">Aucune activité créée pour l'instant.</p>
+      </div>
+
+      <div class="carte">
+        <h2>Budgets et dépassements</h2>
+        <div id="rapport-budgets"></div>
+        <p id="rapport-budgets-vide" class="vide">Sélectionne un seul mois pour voir ses budgets, ou aucun budget n'existe pour ce mois.</p>
+      </div>
+
+      <div class="carte">
+        <h2>Progrès des objectifs d'épargne</h2>
+        <div id="rapport-objectifs"></div>
+        <p id="rapport-objectifs-vide" class="vide">Aucun objectif d'épargne créé pour l'instant.</p>
+      </div>
+
+      <div class="carte">
+        <h2>Investissements</h2>
+        <div id="rapport-investissements"></div>
+        <p id="rapport-investissements-vide" class="vide">Aucun investissement créé pour l'instant.</p>
       </div>
     </section>
 
@@ -208,7 +258,7 @@
         <p><strong>Devise :</strong> FCFA (XOF)</p>
         <p><strong>Catégories de dépenses :</strong></p>
         <ul id="liste-categories-parametres" class="liste-simple"></ul>
-        <p class="note">La sauvegarde JSON est disponible. La modification des catégories et l'export CSV seront ajoutés dans une prochaine étape.</p>
+        <p class="note">La sauvegarde JSON et l'export CSV sont disponibles ci-dessus. La modification des catégories sera ajoutée dans une prochaine étape.</p>
       </div>
 
       <div class="carte carte-danger">
