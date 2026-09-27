@@ -23,6 +23,7 @@ Exemples de messages :
 
 - `Ajoute les sauvegardes JSON`
 - `Ajoute les transferts entre réserves`
+- `Ajoute le suivi des activités et des budgets`
 - `Ajoute le fonctionnement hors ligne`
 
 ## Revenir à une version précédente

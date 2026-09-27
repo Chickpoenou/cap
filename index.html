@@ -79,18 +79,16 @@
         </div>
       </div>
 
-      <!-- Alertes (les budgets arrivent à l'étape 3) -->
       <div class="carte">
         <h2>Alertes</h2>
-        <ul class="liste-simple">
-          <li>Aucune alerte — aucun budget n'est encore défini (étape 3 du plan).</li>
-        </ul>
+        <ul id="alertes-budget" class="liste-simple"></ul>
+        <p id="alertes-vides" class="note">Aucune alerte de budget pour cette période.</p>
       </div>
 
-      <!-- Résumés des autres modules, pour l'instant en attente -->
       <div class="carte">
         <h2>Activités en cours</h2>
-        <p class="note">Aucune activité pour l'instant. La création d'activités arrive à l'étape 3 du plan.</p>
+        <div id="resume-activites"></div>
+        <button type="button" class="btn btn-secondaire" data-ecran="activites">Voir les activités</button>
       </div>
 
       <div class="carte">
@@ -123,29 +121,28 @@
       </div>
     </section>
 
-    <!-- ============ ÉCRAN 3 : ACTIVITÉS (étape 3 du plan) ============ -->
+    <!-- ============ ÉCRAN 3 : ACTIVITÉS ============ -->
     <section id="ecran-activites" class="ecran">
       <div class="carte">
-        <h2>Activités et projets</h2>
-        <p>Cet écran sera construit à l'étape 3 du plan. Il permettra de :</p>
-        <ul class="liste-simple">
-          <li>créer une activité (génie civil, soutien scolaire, création de sites, travaux de maison, sport…) ;</li>
-          <li>lui associer des revenus, des dépenses et des heures travaillées ;</li>
-          <li>consulter son résultat de trésorerie, son reste de budget et son revenu net par heure.</li>
-        </ul>
+        <div class="ligne-flex">
+          <div><h2>Activités et projets</h2><p class="note">Relie les transactions à une activité pour suivre son résultat réel.</p></div>
+          <button type="button" id="btn-nouvelle-activite" class="btn btn-principal">+ Nouvelle activité</button>
+        </div>
+        <div id="liste-activites" class="liste-cartes"></div>
+        <p id="activites-vides" class="vide">Aucune activité. Crée par exemple « Génie civil » ou « Soutien scolaire ».</p>
       </div>
     </section>
 
-    <!-- ============ ÉCRAN 4 : BUDGETS ET ALERTES (étape 3 du plan) ============ -->
+    <!-- ============ ÉCRAN 4 : BUDGETS ET ALERTES ============ -->
     <section id="ecran-budgets" class="ecran">
       <div class="carte">
-        <h2>Budgets et alertes</h2>
-        <p>Cet écran sera construit à l'étape 3 du plan. Il permettra de :</p>
-        <ul class="liste-simple">
-          <li>fixer un budget mensuel général ;</li>
-          <li>fixer des budgets par catégorie ou par activité ;</li>
-          <li>recevoir des alertes à 80 % du budget consommé, puis au dépassement.</li>
-        </ul>
+        <div class="ligne-flex">
+          <div><h2>Budgets et alertes</h2><p class="note">Les dépenses sont comparées au seuil pour le mois choisi.</p></div>
+          <button type="button" id="btn-nouveau-budget" class="btn btn-principal">+ Nouveau budget</button>
+        </div>
+        <label class="filtre-mois-budget">Mois <input type="month" id="mois-budget"></label>
+        <div id="liste-budgets" class="liste-cartes"></div>
+        <p id="budgets-vides" class="vide">Aucun budget pour ce mois.</p>
       </div>
     </section>
 
@@ -219,7 +216,7 @@
   </main>
 
   <footer class="pied">
-    <p>Cap — version 0.2 (étapes 1 et 2). Données enregistrées uniquement sur cet appareil ; pense à les sauvegarder.</p>
+    <p>Cap — version 0.3 (étapes 1 à 3). Données enregistrées uniquement sur cet appareil ; pense à les sauvegarder.</p>
   </footer>
 
   <!-- ============ FORMULAIRE DE TRANSACTION (superposition) ============ -->
@@ -294,6 +291,113 @@
           <button type="button" class="btn btn-danger" id="btn-supprimer" hidden>Supprimer</button>
         </div>
 
+      </form>
+    </div>
+  </section>
+
+  <!-- ============ FORMULAIRE D'ACTIVITÉ ============ -->
+  <section id="voile-activite" class="voile cache" role="dialog" aria-modal="true" aria-labelledby="titre-activite">
+    <div class="voile-carte">
+      <h2 id="titre-activite">Nouvelle activité</h2>
+      <form id="formulaire-activite" novalidate>
+        <div class="champ champ-large">
+          <label for="activite-nom">Nom <span class="obligatoire">*</span></label>
+          <input id="activite-nom" type="text" maxlength="80" placeholder="ex : Génie civil">
+          <small class="message-erreur" id="erreur-activite-nom"></small>
+        </div>
+        <div class="champ">
+          <label for="activite-statut">Statut</label>
+          <select id="activite-statut">
+            <option value="idee">Idée</option>
+            <option value="encours">En cours</option>
+            <option value="pause">En pause</option>
+            <option value="terminee">Terminée</option>
+          </select>
+        </div>
+        <div class="champ">
+          <label for="activite-heures">Heures travaillées</label>
+          <input id="activite-heures" type="number" min="0" step="0.25" inputmode="decimal" placeholder="ex : 4">
+          <small class="message-erreur" id="erreur-activite-heures"></small>
+        </div>
+        <div class="champ">
+          <label for="activite-budget">Budget prévu (FCFA)</label>
+          <input id="activite-budget" type="number" min="0" step="1" inputmode="numeric">
+          <small class="message-erreur" id="erreur-activite-budget"></small>
+        </div>
+        <div class="champ">
+          <label for="activite-revenu-prevu">Revenu prévu (FCFA)</label>
+          <input id="activite-revenu-prevu" type="number" min="0" step="1" inputmode="numeric">
+          <small class="message-erreur" id="erreur-activite-revenu"></small>
+        </div>
+        <div class="champ">
+          <label for="activite-depenses-prevues">Dépenses prévues (FCFA)</label>
+          <input id="activite-depenses-prevues" type="number" min="0" step="1" inputmode="numeric">
+          <small class="message-erreur" id="erreur-activite-depenses"></small>
+        </div>
+        <div class="champ">
+          <label for="activite-date-debut">Date de début</label>
+          <input id="activite-date-debut" type="date">
+        </div>
+        <div class="champ">
+          <label for="activite-date-fin">Date de fin</label>
+          <input id="activite-date-fin" type="date">
+        </div>
+        <div class="champ champ-large">
+          <label for="activite-description">Description</label>
+          <textarea id="activite-description" rows="3" maxlength="500"></textarea>
+        </div>
+        <small class="message-erreur champ-large" id="erreur-activite-dates"></small>
+        <div class="actions-formulaire champ-large">
+          <button type="button" class="btn btn-secondaire" data-fermer="activite">Annuler</button>
+          <button type="submit" class="btn btn-principal">Enregistrer</button>
+          <button type="button" class="btn btn-danger" id="btn-supprimer-activite" hidden>Supprimer</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ============ FORMULAIRE DE BUDGET ============ -->
+  <section id="voile-budget" class="voile cache" role="dialog" aria-modal="true" aria-labelledby="titre-budget">
+    <div class="voile-carte">
+      <h2 id="titre-budget">Nouveau budget</h2>
+      <form id="formulaire-budget" novalidate>
+        <div class="champ champ-large">
+          <label for="budget-type">Type de budget</label>
+          <select id="budget-type">
+            <option value="general">Global (toutes les dépenses)</option>
+            <option value="categorie">Par catégorie</option>
+            <option value="activite">Par activité</option>
+          </select>
+        </div>
+        <div class="champ champ-large">
+          <label for="budget-mois">Mois</label>
+          <input id="budget-mois" type="month">
+          <small class="message-erreur" id="erreur-budget-mois"></small>
+        </div>
+        <div class="champ champ-large champ-budget-categorie cache">
+          <label for="budget-categorie">Catégorie</label>
+          <select id="budget-categorie"></select>
+        </div>
+        <div class="champ champ-large champ-budget-activite cache">
+          <label for="budget-activite">Activité</label>
+          <select id="budget-activite"></select>
+        </div>
+        <div class="champ champ-large">
+          <label for="budget-montant">Montant maximal (FCFA) <span class="obligatoire">*</span></label>
+          <input id="budget-montant" type="number" min="1" step="1" inputmode="numeric">
+          <small class="message-erreur" id="erreur-budget-montant"></small>
+        </div>
+        <div class="champ champ-large">
+          <label for="budget-seuil">Seuil d'alerte (%)</label>
+          <input id="budget-seuil" type="number" min="1" max="100" step="1" value="80" inputmode="numeric">
+          <small class="message-erreur" id="erreur-budget-seuil"></small>
+        </div>
+        <p class="message-erreur champ-large" id="erreur-budget-doublon"></p>
+        <div class="actions-formulaire champ-large">
+          <button type="button" class="btn btn-secondaire" data-fermer="budget">Annuler</button>
+          <button type="submit" class="btn btn-principal">Enregistrer</button>
+          <button type="button" class="btn btn-danger" id="btn-supprimer-budget" hidden>Supprimer</button>
+        </div>
       </form>
     </div>
   </section>

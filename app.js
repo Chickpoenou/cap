@@ -1,6 +1,6 @@
 /* ============================================================
    Cap — logique de l'application
-   Étapes 1 et 2 : navigation, tableau de bord, transactions.
+   Étapes 1 à 3 : navigation, transactions, activités et budgets.
    Toutes les données sont enregistrées dans le stockage local
    du navigateur (localStorage), rien n'est envoyé sur Internet.
    ============================================================ */
@@ -44,6 +44,8 @@ let moisFiltre = '';
    En modification, idEnModification désigne la transaction ouverte. */
 let modeFormulaire = 'ajout';
 let idEnModification = null;
+let idActiviteModification = null;
+let idBudgetModification = null;
 
 /* ---------- 2. Lecture et enregistrement des données ---------- */
 
@@ -75,6 +77,7 @@ function chargerDonnees() {
     donnees.activites = Array.isArray(donnees.activites) ? donnees.activites : [];
     donnees.objectifs = Array.isArray(donnees.objectifs) ? donnees.objectifs : [];
     donnees.investissements = Array.isArray(donnees.investissements) ? donnees.investissements : [];
+    donnees.budgets = Array.isArray(donnees.budgets) ? donnees.budgets : [];
     donnees.reglages = donnees.reglages || {};
     donnees.reglages.devise = donnees.reglages.devise || 'FCFA';
     donnees.reglages.categories = Array.isArray(donnees.reglages.categories)
@@ -94,6 +97,7 @@ function donneesVides() {
     activites: [],
     objectifs: [],
     investissements: [],
+    budgets: [],
     reglages: { devise: 'FCFA', categories: CATEGORIES_DEFAUT.slice() }
   };
 }
@@ -101,10 +105,36 @@ function donneesVides() {
 function structureValide(objet) {
   return objet !== null && typeof objet === 'object' &&
     Array.isArray(objet.transactions) && objet.transactions.every(transactionValide) &&
-    objetsValides(objet.activites) &&
+    (objet.activites === undefined || (Array.isArray(objet.activites) && objet.activites.every(activiteValide))) &&
     objetsValides(objet.objectifs) &&
     objetsValides(objet.investissements) &&
+    (objet.budgets === undefined || (Array.isArray(objet.budgets) && objet.budgets.every(budgetValide))) &&
     (objet.reglages === undefined || (objet.reglages !== null && typeof objet.reglages === 'object'));
+}
+
+function activiteValide(activite) {
+  return activite !== null && typeof activite === 'object' &&
+    typeof activite.id === 'string' && typeof activite.nom === 'string' &&
+    ['idee', 'encours', 'pause', 'terminee'].includes(activite.statut) &&
+    ['budget', 'revenuPrevu', 'depensesPrevues'].every(function (cle) {
+      return activite[cle] === undefined || activite[cle] === null ||
+        (Number.isSafeInteger(activite[cle]) && activite[cle] >= 0);
+    }) &&
+    (activite.heures === undefined || (typeof activite.heures === 'number' && Number.isFinite(activite.heures) && activite.heures >= 0)) &&
+    ['description', 'dateDebut', 'dateFin'].every(function (cle) {
+      return activite[cle] === undefined || typeof activite[cle] === 'string';
+    });
+}
+
+function budgetValide(budget) {
+  return budget !== null && typeof budget === 'object' &&
+    typeof budget.id === 'string' &&
+    ['general', 'categorie', 'activite'].includes(budget.type) &&
+    typeof budget.mois === 'string' && /^\d{4}-\d{2}$/.test(budget.mois) &&
+    Number.isSafeInteger(budget.montant) && budget.montant > 0 &&
+    Number.isInteger(budget.seuil) && budget.seuil >= 1 && budget.seuil <= 100 &&
+    (budget.categorie === undefined || typeof budget.categorie === 'string') &&
+    (budget.activiteId === undefined || typeof budget.activiteId === 'string');
 }
 
 function objetsValides(liste) {
@@ -218,6 +248,7 @@ async function restaurerSauvegarde(fichier) {
     donnees.activites = Array.isArray(donnees.activites) ? donnees.activites : [];
     donnees.objectifs = Array.isArray(donnees.objectifs) ? donnees.objectifs : [];
     donnees.investissements = Array.isArray(donnees.investissements) ? donnees.investissements : [];
+    donnees.budgets = Array.isArray(donnees.budgets) ? donnees.budgets : [];
     donnees.reglages = donnees.reglages || {};
     donnees.reglages.devise = donnees.reglages.devise || 'FCFA';
     donnees.reglages.categories = Array.isArray(donnees.reglages.categories) ? donnees.reglages.categories : CATEGORIES_DEFAUT.slice();
@@ -366,12 +397,224 @@ function totaux(liste) {
       revenus += t.montant;
     } else if (t.type === 'depense') {
       depenses += t.montant;
-    } else {
+    } else if (t.type === 'transfert') {
       transferts += t.montant;
     }
   }
 
   return { revenus: revenus, depenses: depenses, transferts: transferts, solde: revenus - depenses };
+}
+
+/* ---------- 7. Activités et budgets ---------- */
+
+function transactionsDeBudget(budget) {
+  return donnees.transactions.filter(function (transaction) {
+    if (transaction.type !== 'depense' || transaction.date.slice(0, 7) !== budget.mois) return false;
+    if (budget.type === 'categorie') return transaction.categorie === budget.categorie;
+    if (budget.type === 'activite') return transaction.activiteId === budget.activiteId;
+    return true;
+  });
+}
+
+function depensesBudget(budget) {
+  return totaux(transactionsDeBudget(budget)).depenses;
+}
+
+function nomPorteeBudget(budget) {
+  if (budget.type === 'categorie') return 'Catégorie : ' + (budget.categorie || 'inconnue');
+  if (budget.type === 'activite') return 'Activité : ' + nomActivite(budget.activiteId);
+  return 'Budget global';
+}
+
+function libelleStatutActivite(statut) {
+  const libelles = { idee: 'Idée', encours: 'En cours', pause: 'En pause', terminee: 'Terminée' };
+  return libelles[statut] || 'Autre';
+}
+
+function totauxActivite(activiteId) {
+  return totaux(donnees.transactions.filter(function (transaction) {
+    return transaction.activiteId === activiteId;
+  }));
+}
+
+function construireCarteActivite(activite, compacte) {
+  const chiffres = totauxActivite(activite.id);
+  const carte = document.createElement('article');
+  carte.className = 'carte carte-element';
+  if (compacte) carte.classList.add('carte-compacte');
+
+  const entete = document.createElement('div');
+  entete.className = 'ligne-flex';
+  const nom = document.createElement('h3');
+  nom.textContent = activite.nom;
+  const statut = document.createElement('span');
+  statut.className = 'badge-statut statut-' + activite.statut;
+  statut.textContent = libelleStatutActivite(activite.statut);
+  entete.append(nom, statut);
+  carte.appendChild(entete);
+
+  if (activite.description) {
+    const description = document.createElement('p');
+    description.className = 'note';
+    description.textContent = activite.description;
+    carte.appendChild(description);
+  }
+
+  const reel = document.createElement('p');
+  reel.className = 'resume-financier';
+  reel.textContent = 'Revenus reçus : ' + formaterMontant(chiffres.revenus) +
+    ' · Dépenses payées : ' + formaterMontant(chiffres.depenses) +
+    ' · Résultat : ' + formaterMontant(chiffres.solde);
+  carte.appendChild(reel);
+
+  if (activite.budget !== null && activite.budget !== undefined) {
+    const reste = activite.budget - chiffres.depenses;
+    const budget = document.createElement('p');
+    budget.className = reste < 0 ? 'texte-alerte' : 'note';
+    budget.textContent = 'Budget prévu : ' + formaterMontant(activite.budget) +
+      ' · ' + (reste >= 0 ? 'Reste ' + formaterMontant(reste) : 'Dépassement ' + formaterMontant(Math.abs(reste)));
+    carte.appendChild(budget);
+  }
+
+  const previsions = [];
+  if (activite.revenuPrevu !== null && activite.revenuPrevu !== undefined) previsions.push('Revenu prévu : ' + formaterMontant(activite.revenuPrevu));
+  if (activite.depensesPrevues !== null && activite.depensesPrevues !== undefined) previsions.push('Dépenses prévues : ' + formaterMontant(activite.depensesPrevues));
+  if (activite.heures > 0) previsions.push('Résultat net par heure : ' + formaterMontant(Math.round(chiffres.solde / activite.heures)));
+  if (previsions.length) {
+    const details = document.createElement('p');
+    details.className = 'note';
+    details.textContent = previsions.join(' · ');
+    carte.appendChild(details);
+  }
+
+  if (!compacte) {
+    const actions = document.createElement('div');
+    actions.className = 'actions-carte';
+    const modifier = document.createElement('button');
+    modifier.type = 'button';
+    modifier.className = 'btn btn-secondaire';
+    modifier.textContent = 'Modifier';
+    modifier.addEventListener('click', function () { ouvrirFormulaireActivite(activite.id); });
+    const supprimer = document.createElement('button');
+    supprimer.type = 'button';
+    supprimer.className = 'btn btn-secondaire';
+    supprimer.textContent = 'Supprimer';
+    supprimer.addEventListener('click', function () { supprimerActivite(activite.id); });
+    actions.append(modifier, supprimer);
+    carte.appendChild(actions);
+  }
+  return carte;
+}
+
+function rendreActivites() {
+  const liste = document.getElementById('liste-activites');
+  const vide = document.getElementById('activites-vides');
+  liste.replaceChildren();
+  vide.hidden = donnees.activites.length > 0;
+  for (const activite of donnees.activites) liste.appendChild(construireCarteActivite(activite, false));
+}
+
+function rendreResumeActivites() {
+  const conteneur = document.getElementById('resume-activites');
+  conteneur.replaceChildren();
+  const actives = donnees.activites.filter(function (activite) { return activite.statut === 'encours'; }).slice(0, 3);
+  if (!actives.length) {
+    const note = document.createElement('p');
+    note.className = 'note';
+    note.textContent = 'Aucune activité marquée « En cours ».';
+    conteneur.appendChild(note);
+    return;
+  }
+  for (const activite of actives) conteneur.appendChild(construireCarteActivite(activite, true));
+}
+
+function moisAlertesTableau() {
+  const bornes = bornesPeriode();
+  if (periode.mode === 'mois' || periode.mode === 'moisPrecedent') return bornes.debut.slice(0, 7);
+  if (bornes.debut && bornes.fin && bornes.debut.slice(0, 7) === bornes.fin.slice(0, 7)) return bornes.debut.slice(0, 7);
+  return '';
+}
+
+function rendreAlertesBudget() {
+  const liste = document.getElementById('alertes-budget');
+  const vide = document.getElementById('alertes-vides');
+  liste.replaceChildren();
+  const mois = moisAlertesTableau();
+  if (!mois) {
+    vide.textContent = 'Pour afficher les alertes, choisis une période qui reste dans un seul mois.';
+    vide.hidden = false;
+    return;
+  }
+  const alertes = donnees.budgets.filter(function (budget) {
+    return budget.mois === mois && depensesBudget(budget) >= budget.montant * budget.seuil / 100;
+  });
+  vide.textContent = alertes.length ? '' : 'Aucune alerte de budget pour cette période.';
+  vide.hidden = alertes.length > 0;
+  for (const budget of alertes) {
+    const utilise = depensesBudget(budget);
+    const li = document.createElement('li');
+    li.textContent = nomPorteeBudget(budget) + ' : ' + formaterMontant(utilise) + ' dépensés sur ' +
+      formaterMontant(budget.montant) + (utilise > budget.montant ? ' — budget dépassé.' : ' — seuil de ' + budget.seuil + ' % atteint.');
+    liste.appendChild(li);
+  }
+}
+
+function rendreBudgets() {
+  const mois = document.getElementById('mois-budget').value || aujourdhuiISO().slice(0, 7);
+  const liste = document.getElementById('liste-budgets');
+  const vide = document.getElementById('budgets-vides');
+  liste.replaceChildren();
+  const budgets = donnees.budgets.filter(function (budget) { return budget.mois === mois; });
+  vide.hidden = budgets.length > 0;
+
+  for (const budget of budgets) {
+    const utilise = depensesBudget(budget);
+    const taux = utilise / budget.montant * 100;
+    const carte = document.createElement('article');
+    carte.className = 'carte carte-element';
+    const entete = document.createElement('div');
+    entete.className = 'ligne-flex';
+    const titre = document.createElement('h3');
+    titre.textContent = nomPorteeBudget(budget);
+    const seuil = document.createElement('span');
+    seuil.className = 'badge-statut ' + (taux >= 100 ? 'statut-depasse' : (taux >= budget.seuil ? 'statut-alerte' : 'statut-normal'));
+    seuil.textContent = taux >= 100 ? 'Dépassé' : (taux >= budget.seuil ? 'Seuil atteint' : 'Dans la limite');
+    entete.append(titre, seuil);
+    carte.appendChild(entete);
+
+    const chiffres = document.createElement('p');
+    chiffres.className = 'resume-financier';
+    chiffres.textContent = formaterMontant(utilise) + ' dépensés sur ' + formaterMontant(budget.montant) +
+      ' · ' + Math.round(taux) + ' % · alerte à ' + budget.seuil + ' %';
+    carte.appendChild(chiffres);
+    const barre = document.createElement('div');
+    barre.className = 'barre-progression';
+    barre.setAttribute('role', 'progressbar');
+    barre.setAttribute('aria-valuemin', '0');
+    barre.setAttribute('aria-valuemax', '100');
+    barre.setAttribute('aria-valuenow', String(Math.min(100, Math.round(taux))));
+    const progression = document.createElement('span');
+    progression.className = taux >= 100 ? 'progression-depassee' : (taux >= budget.seuil ? 'progression-alerte' : '');
+    progression.style.width = Math.min(100, taux) + '%';
+    barre.appendChild(progression);
+    carte.appendChild(barre);
+
+    const actions = document.createElement('div');
+    actions.className = 'actions-carte';
+    const modifier = document.createElement('button');
+    modifier.type = 'button';
+    modifier.className = 'btn btn-secondaire';
+    modifier.textContent = 'Modifier';
+    modifier.addEventListener('click', function () { ouvrirFormulaireBudget(budget.id); });
+    const supprimer = document.createElement('button');
+    supprimer.type = 'button';
+    supprimer.className = 'btn btn-secondaire';
+    supprimer.textContent = 'Supprimer';
+    supprimer.addEventListener('click', function () { supprimerBudget(budget.id); });
+    actions.append(modifier, supprimer);
+    carte.appendChild(actions);
+    liste.appendChild(carte);
+  }
 }
 
 /* ---------- 7. Tableau de bord (accueil) ---------- */
@@ -407,6 +650,8 @@ function rendreTableauDeBord() {
   }
 
   document.getElementById('libelle-periode').textContent = libelle;
+  rendreAlertesBudget();
+  rendreResumeActivites();
 }
 
 /* ---------- 8. Écran Transactions ---------- */
@@ -546,8 +791,7 @@ function construireLigne(tr) {
   return li;
 }
 
-/* Nom d'une activité à partir de son identifiant (les activités
-   arriveront à l'étape 3 ; la fonction est prête). */
+/* Nom d'une activité à partir de son identifiant. */
 function nomActivite(id) {
   if (!id) {
     return '';
@@ -650,9 +894,7 @@ function remplirChoixCategories() {
   }
 }
 
-/* Remplit la liste déroulante des activités liées.
-   Pour l'instant elle est vide : les activités arrivent à
-   l'étape 3 du plan. */
+/* Remplit la liste déroulante des activités liées. */
 function remplirChoixActivites() {
   const select = document.getElementById('champ-activite');
   select.innerHTML = '';
@@ -846,6 +1088,233 @@ function rendreParametres() {
 
 /* Efface toutes les données de l'appareil, après deux
    confirmations (action définitive). */
+function ouvrirFormulaireActivite(id) {
+  idActiviteModification = id || null;
+  const activite = id ? donnees.activites.find(function (a) { return a.id === id; }) : null;
+  const valeurs = {
+    'activite-nom': activite ? activite.nom : '',
+    'activite-statut': activite ? activite.statut : 'idee',
+    'activite-heures': activite && activite.heures ? activite.heures : '',
+    'activite-budget': activite && activite.budget != null ? activite.budget : '',
+    'activite-revenu-prevu': activite && activite.revenuPrevu != null ? activite.revenuPrevu : '',
+    'activite-depenses-prevues': activite && activite.depensesPrevues != null ? activite.depensesPrevues : '',
+    'activite-date-debut': activite ? activite.dateDebut || '' : '',
+    'activite-date-fin': activite ? activite.dateFin || '' : '',
+    'activite-description': activite ? activite.description || '' : ''
+  };
+  Object.keys(valeurs).forEach(function (idChamp) { document.getElementById(idChamp).value = valeurs[idChamp]; });
+  document.getElementById('titre-activite').textContent = activite ? 'Modifier une activité' : 'Nouvelle activité';
+  document.getElementById('btn-supprimer-activite').hidden = !activite;
+  effacerErreursActivite();
+  document.getElementById('voile-activite').classList.remove('cache');
+  document.getElementById('activite-nom').focus();
+}
+
+function effacerErreursActivite() {
+  document.querySelectorAll('#formulaire-activite .message-erreur').forEach(function (el) { el.textContent = ''; });
+  document.querySelectorAll('#formulaire-activite .invalide').forEach(function (el) { el.classList.remove('invalide'); });
+}
+
+function afficherErreurActivite(champId, erreurId, message) {
+  document.getElementById(champId).closest('.champ').classList.add('invalide');
+  document.getElementById(erreurId).textContent = message;
+}
+
+function validerFormulaireActivite() {
+  effacerErreursActivite();
+  const nom = document.getElementById('activite-nom').value.trim();
+  const statut = document.getElementById('activite-statut').value;
+  const dateDebut = document.getElementById('activite-date-debut').value;
+  const dateFin = document.getElementById('activite-date-fin').value;
+  let valide = true;
+  if (!nom) {
+    afficherErreurActivite('activite-nom', 'erreur-activite-nom', 'Indique un nom.');
+    valide = false;
+  }
+  const nombreOptionnel = function (id, erreurId) {
+    const brut = document.getElementById(id).value.trim();
+    if (brut === '') return null;
+    const nombre = Number(brut);
+    if (!Number.isSafeInteger(nombre) || nombre < 0) {
+      afficherErreurActivite(id, erreurId, 'Entre un montant entier positif ou laisse le champ vide.');
+      valide = false;
+      return null;
+    }
+    return nombre;
+  };
+  const budget = nombreOptionnel('activite-budget', 'erreur-activite-budget');
+  const revenuPrevu = nombreOptionnel('activite-revenu-prevu', 'erreur-activite-revenu');
+  const depensesPrevues = nombreOptionnel('activite-depenses-prevues', 'erreur-activite-depenses');
+  const heuresBrut = document.getElementById('activite-heures').value.trim();
+  const heures = heuresBrut === '' ? 0 : Number(heuresBrut);
+  if (!Number.isFinite(heures) || heures < 0) {
+    afficherErreurActivite('activite-heures', 'erreur-activite-heures', 'Entre un nombre d’heures égal ou supérieur à zéro.');
+    valide = false;
+  }
+  if (dateDebut && dateFin && dateFin < dateDebut) {
+    document.getElementById('erreur-activite-dates').textContent = 'La fin doit être postérieure ou égale au début.';
+    valide = false;
+  }
+  if (!valide) return null;
+  return {
+    nom: nom,
+    statut: statut,
+    description: document.getElementById('activite-description').value.trim(),
+    dateDebut: dateDebut,
+    dateFin: dateFin,
+    heures: heures,
+    budget: budget,
+    revenuPrevu: revenuPrevu,
+    depensesPrevues: depensesPrevues
+  };
+}
+
+function enregistrerActivite() {
+  const valeurs = validerFormulaireActivite();
+  if (!valeurs) return;
+  const avant = JSON.stringify(donnees);
+  if (idActiviteModification) {
+    Object.assign(donnees.activites.find(function (a) { return a.id === idActiviteModification; }), valeurs);
+  } else {
+    donnees.activites.push(Object.assign({ id: nouvelIdentifiant(), creeLe: Date.now() }, valeurs));
+  }
+  if (!enregistrerDonnees()) {
+    donnees = JSON.parse(avant);
+    rendreTout();
+    return;
+  }
+  document.getElementById('voile-activite').classList.add('cache');
+  rendreTout();
+}
+
+function supprimerActivite(id) {
+  const activite = donnees.activites.find(function (a) { return a.id === id; });
+  if (!activite) return;
+  const liee = donnees.transactions.some(function (t) { return t.activiteId === id; }) ||
+    donnees.budgets.some(function (b) { return b.activiteId === id; });
+  if (liee) {
+    alert('Cette activité est liée à une transaction ou un budget. Marque-la « Terminée » pour conserver son historique.');
+    return;
+  }
+  if (!confirm('Supprimer l’activité « ' + activite.nom + ' » ?')) return;
+  const avant = JSON.stringify(donnees);
+  donnees.activites = donnees.activites.filter(function (a) { return a.id !== id; });
+  if (!enregistrerDonnees()) donnees = JSON.parse(avant);
+  rendreTout();
+}
+
+function remplirChoixBudget() {
+  const categories = document.getElementById('budget-categorie');
+  const activites = document.getElementById('budget-activite');
+  categories.replaceChildren();
+  activites.replaceChildren();
+  donnees.reglages.categories.forEach(function (categorie) {
+    const option = document.createElement('option'); option.value = categorie; option.textContent = categorie; categories.appendChild(option);
+  });
+  donnees.activites.forEach(function (activite) {
+    const option = document.createElement('option'); option.value = activite.id; option.textContent = activite.nom; activites.appendChild(option);
+  });
+}
+
+function ouvrirFormulaireBudget(id) {
+  remplirChoixBudget();
+  idBudgetModification = id || null;
+  const budget = id ? donnees.budgets.find(function (b) { return b.id === id; }) : null;
+  document.getElementById('budget-type').value = budget ? budget.type : 'general';
+  document.getElementById('budget-mois').value = budget ? budget.mois : (document.getElementById('mois-budget').value || aujourdhuiISO().slice(0, 7));
+  document.getElementById('budget-montant').value = budget ? budget.montant : '';
+  document.getElementById('budget-seuil').value = budget ? budget.seuil : 80;
+  document.getElementById('budget-categorie').value = budget ? budget.categorie || '' : '';
+  document.getElementById('budget-activite').value = budget ? budget.activiteId || '' : '';
+  document.getElementById('titre-budget').textContent = budget ? 'Modifier un budget' : 'Nouveau budget';
+  document.getElementById('btn-supprimer-budget').hidden = !budget;
+  effacerErreursBudget();
+  actualiserTypeBudget();
+  document.getElementById('voile-budget').classList.remove('cache');
+  document.getElementById('budget-montant').focus();
+}
+
+function actualiserTypeBudget() {
+  const type = document.getElementById('budget-type').value;
+  document.querySelector('.champ-budget-categorie').classList.toggle('cache', type !== 'categorie');
+  document.querySelector('.champ-budget-activite').classList.toggle('cache', type !== 'activite');
+}
+
+function effacerErreursBudget() {
+  document.querySelectorAll('#formulaire-budget .message-erreur').forEach(function (el) { el.textContent = ''; });
+  document.querySelectorAll('#formulaire-budget .invalide').forEach(function (el) { el.classList.remove('invalide'); });
+}
+
+function validerFormulaireBudget() {
+  effacerErreursBudget();
+  const type = document.getElementById('budget-type').value;
+  const mois = document.getElementById('budget-mois').value;
+  const montant = Number(document.getElementById('budget-montant').value);
+  const seuil = Number(document.getElementById('budget-seuil').value);
+  const categorie = document.getElementById('budget-categorie').value;
+  const activiteId = document.getElementById('budget-activite').value;
+  let valide = /^\d{4}-(0[1-9]|1[0-2])$/.test(mois);
+  if (!valide) document.getElementById('erreur-budget-mois').textContent = 'Choisis un mois valide.';
+  if (!Number.isSafeInteger(montant) || montant < 1) {
+    document.getElementById('erreur-budget-montant').textContent = 'Entre un montant entier supérieur à zéro.';
+    document.getElementById('budget-montant').closest('.champ').classList.add('invalide'); valide = false;
+  }
+  if (!Number.isInteger(seuil) || seuil < 1 || seuil > 100) {
+    document.getElementById('erreur-budget-seuil').textContent = 'Le seuil doit être compris entre 1 et 100 %.';
+    document.getElementById('budget-seuil').closest('.champ').classList.add('invalide'); valide = false;
+  }
+  let erreurPortee = '';
+  if (type === 'categorie' && !categorie) {
+    erreurPortee = 'Aucune catégorie disponible. Ajoute une catégorie dans les paramètres avant de créer ce budget.';
+    valide = false;
+  }
+  if (type === 'activite' && !activiteId) {
+    erreurPortee = 'Crée d’abord une activité avant de lui affecter un budget.';
+    valide = false;
+  }
+  const doublon = donnees.budgets.some(function (budget) {
+    return budget.id !== idBudgetModification && budget.mois === mois && budget.type === type &&
+      (type === 'categorie' ? budget.categorie === categorie : (type === 'activite' ? budget.activiteId === activiteId : true));
+  });
+  if (doublon) {
+    document.getElementById('erreur-budget-doublon').textContent = 'Ce budget existe déjà pour ce mois ; modifie le budget existant.';
+    valide = false;
+  } else {
+    document.getElementById('erreur-budget-doublon').textContent = erreurPortee;
+  }
+  if (!valide) return null;
+  return { type: type, mois: mois, montant: montant, seuil: seuil,
+    categorie: type === 'categorie' ? categorie : '', activiteId: type === 'activite' ? activiteId : '' };
+}
+
+function enregistrerBudget() {
+  const valeurs = validerFormulaireBudget();
+  if (!valeurs) return;
+  const avant = JSON.stringify(donnees);
+  if (idBudgetModification) {
+    Object.assign(donnees.budgets.find(function (b) { return b.id === idBudgetModification; }), valeurs);
+  } else {
+    donnees.budgets.push(Object.assign({ id: nouvelIdentifiant() }, valeurs));
+  }
+  if (!enregistrerDonnees()) {
+    donnees = JSON.parse(avant);
+    rendreTout();
+    return;
+  }
+  document.getElementById('mois-budget').value = valeurs.mois;
+  document.getElementById('voile-budget').classList.add('cache');
+  rendreTout();
+}
+
+function supprimerBudget(id) {
+  const budget = donnees.budgets.find(function (b) { return b.id === id; });
+  if (!budget || !confirm('Supprimer ce budget ? Les transactions ne seront pas modifiées.')) return;
+  const avant = JSON.stringify(donnees);
+  donnees.budgets = donnees.budgets.filter(function (b) { return b.id !== id; });
+  if (!enregistrerDonnees()) donnees = JSON.parse(avant);
+  rendreTout();
+}
+
 function effacerToutesLesDonnees() {
   if (!confirm('Effacer TOUTES les données enregistrées sur cet appareil ?')) {
     return;
@@ -874,6 +1343,8 @@ function effacerToutesLesDonnees() {
 
 /* Met à jour tout ce qui s'affiche à l'écran. */
 function rendreTout() {
+  rendreActivites();
+  rendreBudgets();
   rendreTableauDeBord();
   remplirFiltreMois();
   rendreTransactions();
@@ -884,7 +1355,7 @@ function rendreTout() {
 function installerEcouteurs() {
 
   /* Navigation par onglets. */
-  document.querySelectorAll('.onglet').forEach(function (onglet) {
+  document.querySelectorAll('[data-ecran]').forEach(function (onglet) {
     onglet.addEventListener('click', function () {
       afficherEcran(onglet.dataset.ecran);
     });
@@ -894,6 +1365,26 @@ function installerEcouteurs() {
   document.getElementById('btn-parametres').addEventListener('click', function () {
     afficherEcran('parametres');
   });
+
+  document.getElementById('btn-nouvelle-activite').addEventListener('click', function () { ouvrirFormulaireActivite(null); });
+  document.getElementById('btn-nouveau-budget').addEventListener('click', function () { ouvrirFormulaireBudget(null); });
+  document.getElementById('mois-budget').addEventListener('change', rendreBudgets);
+  document.getElementById('budget-type').addEventListener('change', actualiserTypeBudget);
+  document.getElementById('formulaire-activite').addEventListener('submit', function (e) {
+    e.preventDefault();
+    enregistrerActivite();
+  });
+  document.getElementById('formulaire-budget').addEventListener('submit', function (e) {
+    e.preventDefault();
+    enregistrerBudget();
+  });
+  document.querySelectorAll('[data-fermer]').forEach(function (bouton) {
+    bouton.addEventListener('click', function () {
+      document.getElementById('voile-' + bouton.dataset.fermer).classList.add('cache');
+    });
+  });
+  document.getElementById('btn-supprimer-activite').addEventListener('click', function () { supprimerActivite(idActiviteModification); });
+  document.getElementById('btn-supprimer-budget').addEventListener('click', function () { supprimerBudget(idBudgetModification); });
 
   /* Boutons d'ajout rapide (accueil et écran Transactions).
      data-ouvrir contient 'depense', 'revenu' ou 'transfert'. */
@@ -947,11 +1438,18 @@ function installerEcouteurs() {
       fermerFormulaire();
     }
   });
+  ['voile-activite', 'voile-budget'].forEach(function (idVoile) {
+    document.getElementById(idVoile).addEventListener('click', function (e) {
+      if (e.target.id === idVoile) e.target.classList.add('cache');
+    });
+  });
 
   /* La touche Échap ferme aussi le formulaire. */
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
       fermerFormulaire();
+      document.getElementById('voile-activite').classList.add('cache');
+      document.getElementById('voile-budget').classList.add('cache');
     }
   });
 
@@ -986,6 +1484,7 @@ function installerEcouteurs() {
 chargerDonnees();
 if (stockageEnErreur) afficherErreurStockage();
 moisFiltre = aujourdhuiISO().slice(0, 7);
+document.getElementById('mois-budget').value = aujourdhuiISO().slice(0, 7);
 
 /* Valeurs de départ de la période personnalisée : tout le mois
    en cours (pratique si l'on veut juste raccourcir la période). */

@@ -166,6 +166,115 @@ main {
   border-color: #e7b8b4;
 }
 
+.carte-element h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.liste-cartes .carte-element:last-child {
+  margin-bottom: 0;
+}
+
+.carte-compacte {
+  padding: 12px;
+  margin-bottom: 8px;
+}
+
+.resume-financier {
+  margin: 8px 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.actions-carte {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.actions-carte .btn {
+  min-height: 40px;
+  padding: 8px 12px;
+  font-size: 0.9rem;
+}
+
+.badge-statut {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #e8edf1;
+  color: var(--texte);
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.statut-encours,
+.statut-normal {
+  background: #e0f2e9;
+  color: #145b3e;
+}
+
+.statut-pause,
+.statut-idee {
+  background: #fff2d7;
+  color: #795400;
+}
+
+.statut-terminee {
+  background: #e8edf1;
+  color: #45545f;
+}
+
+.statut-alerte {
+  background: #fff2d7;
+  color: #795400;
+}
+
+.statut-depasse,
+.texte-alerte {
+  background: #fdecea;
+  color: #8a211b;
+}
+
+.barre-progression {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8edf1;
+}
+
+.barre-progression span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--couleur-revenu);
+}
+
+.barre-progression .progression-alerte {
+  background: #d48b00;
+}
+
+.barre-progression .progression-depassee {
+  background: var(--couleur-depense);
+}
+
+.filtre-mois-budget {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+  color: var(--texte-clair);
+  font-size: 0.9rem;
+}
+
+.filtre-mois-budget input {
+  padding: 8px;
+  border: 1px solid var(--bordure);
+  border-radius: 8px;
+  font: inherit;
+}
+
 .alerte-stockage {
   border-color: #e7b8b4;
   background: #fff7f6;
@@ -466,7 +575,8 @@ main {
 }
 
 .champ input,
-.champ select {
+.champ select,
+.champ textarea {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid var(--bordure);
@@ -478,7 +588,8 @@ main {
 
 /* Champs en erreur : bordure + fond très léger. */
 .champ.invalide input,
-.champ.invalide select {
+.champ.invalide select,
+.champ.invalide textarea {
   border-color: var(--couleur-depense);
   background: #fff8f7;
 }
@@ -540,7 +651,9 @@ main {
 
   /* ...et ses champs se placent sur deux colonnes.
      Les champs "large" occupent toute la largeur. */
-  #formulaire-transaction {
+  #formulaire-transaction,
+  #formulaire-activite,
+  #formulaire-budget {
     display: grid;
     grid-template-columns: 1fr 1fr;
     column-gap: 16px;

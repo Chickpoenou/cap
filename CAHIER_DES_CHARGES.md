@@ -2,7 +2,7 @@
 
 **Dossier du projet :** `suivi-activites`
 **Date :** 27 septembre 2026
-**Statut :** version 2 — validée, sert de base au développement
+**Statut :** version 2 — base validée ; étapes 1 à 3 en cours d'implémentation
 
 ---
 
@@ -240,7 +240,7 @@ La première version est considérée utilisable si l'utilisateur peut :
 
 1. Définir les écrans et les catégories.
 2. Construire le tableau de bord, la saisie des transactions et les sauvegardes JSON.
-3. Ajouter activités, budgets et alertes.
+3. Ajouter et suivre les activités, budgets et alertes (implémenté en version 0.3).
 4. Ajouter objectifs d'épargne et calcul des cotisations.
 5. Ajouter investissements et rapports.
 6. Vérifier l'utilisation hors ligne, l'export et la restauration.
