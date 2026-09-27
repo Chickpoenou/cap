@@ -1,6 +1,6 @@
 /* ============================================================
    Cap — logique de l'application
-   Étapes 1 à 3 : navigation, transactions, activités et budgets.
+   Étapes 1 à 4 : navigation, transactions, activités, budgets et objectifs.
    Toutes les données sont enregistrées dans le stockage local
    du navigateur (localStorage), rien n'est envoyé sur Internet.
    ============================================================ */
@@ -26,8 +26,7 @@ const CATEGORIES_DEFAUT = [
 ];
 
 /* Toutes les données de l'application, chargées au démarrage.
-   Les listes activites, objectifs et investissements sont vides
-   pour l'instant : elles seront remplies aux étapes 3, 4 et 5. */
+   La liste investissements attend l'étape 5. */
 let donnees = null;
 let stockageEnErreur = false;
 let messageErreurStockage = '';
@@ -46,6 +45,9 @@ let modeFormulaire = 'ajout';
 let idEnModification = null;
 let idActiviteModification = null;
 let idBudgetModification = null;
+let idObjectifModification = null;
+let idObjectifCotisation = null;
+let idObjectifAchat = null;
 
 /* ---------- 2. Lecture et enregistrement des données ---------- */
 
@@ -106,7 +108,7 @@ function structureValide(objet) {
   return objet !== null && typeof objet === 'object' &&
     Array.isArray(objet.transactions) && objet.transactions.every(transactionValide) &&
     (objet.activites === undefined || (Array.isArray(objet.activites) && objet.activites.every(activiteValide))) &&
-    objetsValides(objet.objectifs) &&
+    (objet.objectifs === undefined || (Array.isArray(objet.objectifs) && objet.objectifs.every(objectifValide))) &&
     objetsValides(objet.investissements) &&
     (objet.budgets === undefined || (Array.isArray(objet.budgets) && objet.budgets.every(budgetValide))) &&
     (objet.reglages === undefined || (objet.reglages !== null && typeof objet.reglages === 'object'));
@@ -149,10 +151,37 @@ function transactionValide(transaction) {
     ['revenu', 'depense', 'transfert'].includes(transaction.type) &&
     Number.isSafeInteger(transaction.montant) && transaction.montant > 0 &&
     typeof transaction.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(transaction.date) &&
-    ['categorie', 'activiteId', 'moyen', 'note', 'justificatif', 'source', 'destination'].every(function (cle) {
+    ['categorie', 'activiteId', 'objectifId', 'moyen', 'note', 'justificatif', 'source', 'destination'].every(function (cle) {
       return transaction[cle] === undefined || typeof transaction[cle] === 'string';
     }) &&
     (transaction.creeLe === undefined || Number.isFinite(transaction.creeLe));
+}
+
+function objectifValide(objectif) {
+  return objectif !== null && typeof objectif === 'object' &&
+    typeof objectif.id === 'string' && typeof objectif.nom === 'string' &&
+    Number.isSafeInteger(objectif.cible) && objectif.cible > 0 &&
+    (objectif.montantInitial === undefined || (Number.isSafeInteger(objectif.montantInitial) && objectif.montantInitial >= 0)) &&
+    (objectif.dateCible === '' || /^\d{4}-\d{2}-\d{2}$/.test(objectif.dateCible)) &&
+    ['hebdomadaire', 'mensuelle'].includes(objectif.frequence) &&
+    (objectif.cotisationPrevue === null || (Number.isSafeInteger(objectif.cotisationPrevue) && objectif.cotisationPrevue > 0)) &&
+    typeof objectif.reserve === 'string' && ['encours', 'termine'].includes(objectif.statut) &&
+    Array.isArray(objectif.cotisations) && objectif.cotisations.every(cotisationValide) &&
+    (objectif.achat === null || achatObjectifValide(objectif.achat)) && Number.isFinite(objectif.creeLe);
+}
+
+function cotisationValide(cotisation) {
+  return cotisation !== null && typeof cotisation === 'object' &&
+    typeof cotisation.id === 'string' && Number.isSafeInteger(cotisation.montant) && cotisation.montant > 0 &&
+    typeof cotisation.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(cotisation.date) &&
+    typeof cotisation.note === 'string' && Number.isFinite(cotisation.creeLe);
+}
+
+function achatObjectifValide(achat) {
+  return achat !== null && typeof achat === 'object' &&
+    typeof achat.transactionId === 'string' && Number.isSafeInteger(achat.montant) && achat.montant > 0 &&
+    typeof achat.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(achat.date) && typeof achat.categorie === 'string' &&
+    ['encours', 'termine'].includes(achat.statutAvantAchat);
 }
 
 /* Enregistre toutes les données dans le stockage local. */
@@ -540,21 +569,39 @@ function rendreAlertesBudget() {
   const vide = document.getElementById('alertes-vides');
   liste.replaceChildren();
   const mois = moisAlertesTableau();
-  if (!mois) {
-    vide.textContent = 'Pour afficher les alertes, choisis une période qui reste dans un seul mois.';
-    vide.hidden = false;
-    return;
-  }
-  const alertes = donnees.budgets.filter(function (budget) {
+  const alertesBudget = mois ? donnees.budgets.filter(function (budget) {
     return budget.mois === mois && depensesBudget(budget) >= budget.montant * budget.seuil / 100;
+  }) : [];
+  const alertesObjectif = donnees.objectifs.filter(function (objectif) {
+    return objectif.statut === 'encours' && (
+      (objectif.dateCible && objectif.dateCible < aujourdhuiISO() && montantRestantObjectif(objectif) > 0) || cotisationEnRetard(objectif)
+    );
   });
-  vide.textContent = alertes.length ? '' : 'Aucune alerte de budget pour cette période.';
-  vide.hidden = alertes.length > 0;
-  for (const budget of alertes) {
+  if (!mois && !alertesObjectif.length) {
+    vide.textContent = 'Pour afficher les budgets, choisis une période qui reste dans un seul mois.';
+    vide.hidden = false;
+  } else {
+    vide.textContent = alertesBudget.length || alertesObjectif.length ? '' : 'Aucune alerte de budget ou d’objectif pour cette période.';
+    vide.hidden = alertesBudget.length + alertesObjectif.length > 0;
+  }
+  for (const budget of alertesBudget) {
     const utilise = depensesBudget(budget);
     const li = document.createElement('li');
     li.textContent = nomPorteeBudget(budget) + ' : ' + formaterMontant(utilise) + ' dépensés sur ' +
       formaterMontant(budget.montant) + (utilise > budget.montant ? ' — budget dépassé.' : ' — seuil de ' + budget.seuil + ' % atteint.');
+    liste.appendChild(li);
+  }
+  for (const objectif of alertesObjectif) {
+    const li = document.createElement('li');
+    const messages = [];
+    if (objectif.dateCible && objectif.dateCible < aujourdhuiISO() && montantRestantObjectif(objectif) > 0) {
+      messages.push('date souhaitée dépassée, reste ' + formaterMontant(montantRestantObjectif(objectif)));
+    }
+    if (cotisationEnRetard(objectif)) {
+      messages.push('cotisations prévues : ' + formaterMontant(montantCotisationsAttendues(objectif)) +
+        ' cumulés, enregistrés : ' + formaterMontant(totalCotise(objectif)));
+    }
+    li.textContent = 'Objectif « ' + objectif.nom + ' » : ' + messages.join(' ; ') + '.';
     liste.appendChild(li);
   }
 }
@@ -617,7 +664,381 @@ function rendreBudgets() {
   }
 }
 
-/* ---------- 7. Tableau de bord (accueil) ---------- */
+/* ---------- 8. Objectifs d'épargne et cotisations ---------- */
+
+function totalCotise(objectif) {
+  return (objectif.montantInitial || 0) + objectif.cotisations.reduce(function (total, cotisation) { return total + cotisation.montant; }, 0);
+}
+
+function montantRestantObjectif(objectif) {
+  return Math.max(0, objectif.cible - totalCotise(objectif));
+}
+
+function montantCotisationsAttendues(objectif) {
+  if (!objectif.cotisationPrevue || objectif.statut !== 'encours') return 0;
+  const debutISO = versISO(new Date(objectif.creeLe));
+  const debut = new Date(debutISO + 'T12:00:00');
+  const aujourdHui = new Date(aujourdhuiISO() + 'T12:00:00');
+  if (objectif.frequence === 'hebdomadaire') {
+    const periodes = Math.max(0, Math.floor((aujourdHui - debut) / (7 * 86400000)));
+    return Math.min(objectif.cible, periodes * objectif.cotisationPrevue);
+  }
+  let periodes = (aujourdHui.getFullYear() - debut.getFullYear()) * 12 + aujourdHui.getMonth() - debut.getMonth();
+  const dernierJourMois = new Date(aujourdHui.getFullYear(), aujourdHui.getMonth() + 1, 0).getDate();
+  const jourEcheance = Math.min(debut.getDate(), dernierJourMois);
+  if (aujourdHui.getDate() < jourEcheance) periodes -= 1;
+  return Math.min(objectif.cible, Math.max(0, periodes) * objectif.cotisationPrevue);
+}
+
+function cotisationEnRetard(objectif) {
+  return montantRestantObjectif(objectif) > 0 && totalCotise(objectif) < montantCotisationsAttendues(objectif);
+}
+
+function periodesRestantesObjectif(objectif) {
+  if (!objectif.dateCible) return null;
+  const aujourdHui = new Date(aujourdhuiISO() + 'T12:00:00');
+  const cible = new Date(objectif.dateCible + 'T12:00:00');
+  if (!Number.isFinite(cible.getTime())) return null;
+  if (objectif.frequence === 'hebdomadaire') {
+    const jours = Math.max(0, Math.ceil((cible - aujourdHui) / 86400000));
+    return Math.max(1, Math.ceil(jours / 7));
+  }
+  const mois = (cible.getFullYear() - aujourdHui.getFullYear()) * 12 + cible.getMonth() - aujourdHui.getMonth();
+  return Math.max(1, mois);
+}
+
+function resumeRythmeObjectif(objectif) {
+  const restant = montantRestantObjectif(objectif);
+  if (restant === 0) return 'Objectif atteint : tu as déjà mis de côté le montant cible.';
+  const rappel = cotisationEnRetard(objectif) ? ' La cotisation prévue semble en retard.' : '';
+  if (!objectif.dateCible) return 'Ajoute une date souhaitée pour calculer le montant à cotiser par période.' + rappel;
+  const enRetard = objectif.dateCible < aujourdhuiISO();
+  const periodes = periodesRestantesObjectif(objectif);
+  const montant = Math.ceil(restant / periodes);
+  const frequence = objectif.frequence === 'hebdomadaire' ? 'semaine' : 'mois';
+  return (enRetard ? 'Date souhaitée dépassée. ' : '') + 'Pour atteindre la cible, prévois environ ' +
+    formaterMontant(montant) + ' par ' + frequence + ' sur ' + periodes + (periodes > 1 ? ' périodes.' : ' période.') + rappel;
+}
+
+function construireCarteObjectif(objectif, compacte) {
+  const cotise = totalCotise(objectif);
+  const restant = montantRestantObjectif(objectif);
+  const pourcentage = Math.min(100, Math.round(cotise / objectif.cible * 100));
+  const carte = document.createElement('article');
+  carte.className = 'carte carte-element';
+  if (compacte) carte.classList.add('carte-compacte');
+
+  const entete = document.createElement('div');
+  entete.className = 'ligne-flex';
+  const nom = document.createElement('h3');
+  nom.textContent = objectif.nom;
+  const badge = document.createElement('span');
+  badge.className = 'badge-statut ' + (objectif.statut === 'termine' ? 'statut-terminee' : (objectif.dateCible && objectif.dateCible < aujourdhuiISO() && restant > 0 ? 'statut-alerte' : 'statut-encours'));
+  badge.textContent = objectif.statut === 'termine' ? 'Terminé' : (restant === 0 ? 'Montant atteint' : (objectif.dateCible && objectif.dateCible < aujourdhuiISO() ? 'En retard' : 'En cours'));
+  entete.append(nom, badge);
+  carte.appendChild(entete);
+
+  const chiffres = document.createElement('p');
+  chiffres.className = 'resume-financier';
+  chiffres.textContent = formaterMontant(cotise) + ' mis de côté sur ' + formaterMontant(objectif.cible) +
+    ' · reste ' + formaterMontant(restant) + ' · ' + pourcentage + ' %';
+  carte.appendChild(chiffres);
+
+  const barre = document.createElement('div');
+  barre.className = 'barre-progression';
+  barre.setAttribute('role', 'progressbar');
+  barre.setAttribute('aria-label', 'Progression de ' + objectif.nom);
+  barre.setAttribute('aria-valuemin', '0');
+  barre.setAttribute('aria-valuemax', '100');
+  barre.setAttribute('aria-valuenow', String(pourcentage));
+  const progression = document.createElement('span');
+  progression.style.width = pourcentage + '%';
+  barre.appendChild(progression);
+  carte.appendChild(barre);
+
+  const details = document.createElement('p');
+  details.className = 'note';
+  details.textContent = (objectif.dateCible ? 'Souhaité pour le ' + formaterDateCourte(objectif.dateCible) + ' · ' : '') +
+    (objectif.reserve ? 'Réserve : ' + objectif.reserve + ' · ' : '') + resumeRythmeObjectif(objectif);
+  carte.appendChild(details);
+
+  if (objectif.montantInitial > 0) {
+    const initial = document.createElement('p');
+    initial.className = 'note';
+    initial.textContent = 'Déjà mis de côté avant le suivi : ' + formaterMontant(objectif.montantInitial) + '.';
+    carte.appendChild(initial);
+  }
+
+  if (objectif.achat) {
+    const achat = document.createElement('p');
+    achat.className = 'note';
+    achat.textContent = 'Achat enregistré comme dépense le ' + formaterDateCourte(objectif.achat.date) +
+      ' : ' + formaterMontant(objectif.achat.montant) + '.';
+    carte.appendChild(achat);
+  }
+
+  if (objectif.cotisations.length) {
+    const historique = document.createElement('details');
+    historique.className = 'historique-cotisations';
+    const titreHistorique = document.createElement('summary');
+    titreHistorique.textContent = 'Historique des cotisations (' + objectif.cotisations.length + ')';
+    historique.appendChild(titreHistorique);
+    const liste = document.createElement('ul');
+    liste.className = 'liste-simple';
+    objectif.cotisations.slice().sort(function (a, b) { return b.date.localeCompare(a.date) || b.creeLe - a.creeLe; }).forEach(function (cotisation) {
+      const ligne = document.createElement('li');
+      ligne.className = 'ligne-cotisation';
+      const texte = document.createElement('span');
+      texte.textContent = formaterDateCourte(cotisation.date) + ' · ' + formaterMontant(cotisation.montant) +
+        (cotisation.note ? ' · ' + cotisation.note : '');
+      const retirer = document.createElement('button');
+      retirer.type = 'button';
+      retirer.className = 'btn btn-secondaire bouton-retirer-cotisation';
+      retirer.textContent = 'Retirer';
+      retirer.setAttribute('aria-label', 'Retirer la cotisation de ' + formaterMontant(cotisation.montant) + ' du ' + formaterDateCourte(cotisation.date));
+      retirer.addEventListener('click', function () { supprimerCotisation(objectif.id, cotisation.id); });
+      ligne.append(texte, retirer);
+      liste.appendChild(ligne);
+    });
+    historique.appendChild(liste);
+    carte.appendChild(historique);
+  }
+
+  const actions = document.createElement('div');
+  actions.className = 'actions-carte';
+  if (objectif.statut === 'encours') {
+    const cotiser = document.createElement('button');
+    cotiser.type = 'button';
+    cotiser.className = 'btn btn-principal';
+    cotiser.textContent = 'Cotiser';
+    cotiser.addEventListener('click', function () { ouvrirFormulaireCotisation(objectif.id); });
+    actions.appendChild(cotiser);
+  }
+  if (!objectif.achat && objectif.statut === 'encours') {
+    const achat = document.createElement('button');
+    achat.type = 'button';
+    achat.className = 'btn btn-secondaire';
+    achat.textContent = 'Achat effectué';
+    achat.addEventListener('click', function () { ouvrirFormulaireAchat(objectif.id); });
+    actions.appendChild(achat);
+  }
+  const modifier = document.createElement('button');
+  modifier.type = 'button';
+  modifier.className = 'btn btn-secondaire';
+  modifier.textContent = 'Modifier';
+  modifier.addEventListener('click', function () { ouvrirFormulaireObjectif(objectif.id); });
+  actions.appendChild(modifier);
+  const supprimer = document.createElement('button');
+  supprimer.type = 'button';
+  supprimer.className = 'btn btn-secondaire';
+  supprimer.textContent = 'Supprimer';
+  supprimer.addEventListener('click', function () { supprimerObjectif(objectif.id); });
+  actions.appendChild(supprimer);
+  carte.appendChild(actions);
+  return carte;
+}
+
+function objectifsEnCours() {
+  return donnees.objectifs.filter(function (objectif) { return objectif.statut === 'encours'; });
+}
+
+function rendreObjectifs() {
+  const liste = document.getElementById('liste-objectifs');
+  const vide = document.getElementById('objectifs-vides');
+  liste.replaceChildren();
+  const objectifs = donnees.objectifs.slice().sort(function (a, b) {
+    if (a.statut !== b.statut) return a.statut === 'encours' ? -1 : 1;
+    return b.creeLe - a.creeLe;
+  });
+  vide.hidden = objectifs.length > 0;
+  objectifs.forEach(function (objectif) { liste.appendChild(construireCarteObjectif(objectif, false)); });
+}
+
+function rendreResumeObjectifs() {
+  const conteneur = document.getElementById('resume-objectifs');
+  const bouton = document.getElementById('btn-cotisation-rapide');
+  conteneur.replaceChildren();
+  const objectifs = objectifsEnCours().slice(0, 3);
+  bouton.disabled = objectifsEnCours().length === 0;
+  if (!objectifs.length) {
+    const note = document.createElement('p');
+    note.className = 'note';
+    note.textContent = 'Aucun objectif en cours.';
+    conteneur.appendChild(note);
+    return;
+  }
+  objectifs.forEach(function (objectif) { conteneur.appendChild(construireCarteObjectif(objectif, true)); });
+}
+
+function ouvrirFormulaireObjectif(id) {
+  idObjectifModification = id || null;
+  const objectif = id ? donnees.objectifs.find(function (o) { return o.id === id; }) : null;
+  document.getElementById('objectif-nom').value = objectif ? objectif.nom : '';
+  document.getElementById('objectif-cible').value = objectif ? objectif.cible : '';
+  document.getElementById('objectif-montant-initial').value = objectif ? (objectif.montantInitial || 0) : '0';
+  document.getElementById('objectif-date').value = objectif ? objectif.dateCible : '';
+  document.getElementById('objectif-frequence').value = objectif ? objectif.frequence : 'hebdomadaire';
+  document.getElementById('objectif-cotisation-prevue').value = objectif && objectif.cotisationPrevue ? objectif.cotisationPrevue : '';
+  document.getElementById('objectif-reserve').value = objectif ? objectif.reserve : '';
+  document.getElementById('objectif-statut').value = objectif ? objectif.statut : 'encours';
+  document.getElementById('titre-objectif').textContent = objectif ? 'Modifier un objectif' : 'Nouvel objectif';
+  document.getElementById('erreur-objectif-formulaire').textContent = '';
+  ['objectif-nom', 'objectif-cible', 'objectif-montant-initial', 'objectif-date', 'objectif-cotisation-prevue'].forEach(function (idChamp) {
+    const champ = document.getElementById(idChamp);
+    champ.closest('.champ').classList.remove('invalide');
+  });
+  document.getElementById('voile-objectif').classList.remove('cache');
+  document.getElementById('objectif-nom').focus();
+}
+
+function validerFormulaireObjectif() {
+  const nom = document.getElementById('objectif-nom').value.trim();
+  const cible = Number(document.getElementById('objectif-cible').value);
+  const montantInitialBrut = document.getElementById('objectif-montant-initial').value.trim();
+  const montantInitial = montantInitialBrut === '' ? 0 : Number(montantInitialBrut);
+  const dateCible = document.getElementById('objectif-date').value;
+  const cotisationBrute = document.getElementById('objectif-cotisation-prevue').value.trim();
+  const cotisationPrevue = cotisationBrute === '' ? null : Number(cotisationBrute);
+  let valide = true;
+  document.getElementById('erreur-objectif-formulaire').textContent = '';
+  ['erreur-objectif-nom', 'erreur-objectif-cible', 'erreur-objectif-initial', 'erreur-objectif-date', 'erreur-objectif-cotisation'].forEach(function (idErreur) {
+    document.getElementById(idErreur).textContent = '';
+  });
+  if (!nom) { document.getElementById('erreur-objectif-nom').textContent = 'Indique un nom.'; document.getElementById('objectif-nom').closest('.champ').classList.add('invalide'); valide = false; }
+  if (!Number.isSafeInteger(cible) || cible < 1) { document.getElementById('erreur-objectif-cible').textContent = 'Entre un prix cible entier supérieur à zéro.'; document.getElementById('objectif-cible').closest('.champ').classList.add('invalide'); valide = false; }
+  if (!Number.isSafeInteger(montantInitial) || montantInitial < 0) { document.getElementById('erreur-objectif-initial').textContent = 'Entre un montant entier supérieur ou égal à zéro.'; document.getElementById('objectif-montant-initial').closest('.champ').classList.add('invalide'); valide = false; }
+  if (dateCible && !/^\d{4}-\d{2}-\d{2}$/.test(dateCible)) { document.getElementById('erreur-objectif-date').textContent = 'Choisis une date valide.'; valide = false; }
+  if (cotisationPrevue !== null && (!Number.isSafeInteger(cotisationPrevue) || cotisationPrevue < 1)) { document.getElementById('erreur-objectif-cotisation').textContent = 'Entre un montant entier supérieur à zéro ou laisse le champ vide.'; document.getElementById('objectif-cotisation-prevue').closest('.champ').classList.add('invalide'); valide = false; }
+  if (!valide) return null;
+  return { nom: nom, cible: cible, montantInitial: montantInitial, dateCible: dateCible, frequence: document.getElementById('objectif-frequence').value,
+    cotisationPrevue: cotisationPrevue, reserve: document.getElementById('objectif-reserve').value.trim(), statut: document.getElementById('objectif-statut').value };
+}
+
+function enregistrerObjectif() {
+  const valeurs = validerFormulaireObjectif();
+  if (!valeurs) return;
+  const avant = JSON.stringify(donnees);
+  if (idObjectifModification) {
+    Object.assign(donnees.objectifs.find(function (o) { return o.id === idObjectifModification; }), valeurs);
+  } else {
+    donnees.objectifs.push(Object.assign({ id: nouvelIdentifiant(), creeLe: Date.now(), cotisations: [], achat: null }, valeurs));
+  }
+  if (!enregistrerDonnees()) { donnees = JSON.parse(avant); rendreTout(); return; }
+  document.getElementById('voile-objectif').classList.add('cache');
+  rendreTout();
+}
+
+function supprimerObjectif(id) {
+  const objectif = donnees.objectifs.find(function (o) { return o.id === id; });
+  if (!objectif) return;
+  if (objectif.cotisations.length || objectif.achat) {
+    alert('Cet objectif possède un historique financier et ne peut pas être supprimé. Marque-le « Terminé » pour le garder dans la liste.');
+    return;
+  }
+  if (!confirm('Supprimer l’objectif « ' + objectif.nom + ' » ?')) return;
+  const avant = JSON.stringify(donnees);
+  donnees.objectifs = donnees.objectifs.filter(function (o) { return o.id !== id; });
+  if (!enregistrerDonnees()) donnees = JSON.parse(avant);
+  rendreTout();
+}
+
+function remplirChoixCotisation() {
+  const select = document.getElementById('cotisation-objectif');
+  select.replaceChildren();
+  objectifsEnCours().forEach(function (objectif) {
+    const option = document.createElement('option');
+    option.value = objectif.id;
+    option.textContent = objectif.nom + ' · reste ' + formaterMontant(montantRestantObjectif(objectif));
+    select.appendChild(option);
+  });
+}
+
+function ouvrirFormulaireCotisation(id) {
+  remplirChoixCotisation();
+  const objectif = donnees.objectifs.find(function (o) { return o.id === id; }) || objectifsEnCours()[0];
+  if (!objectif || objectif.statut !== 'encours') return;
+  idObjectifCotisation = objectif.id;
+  document.getElementById('cotisation-objectif').value = objectif.id;
+  document.getElementById('cotisation-montant').value = objectif.cotisationPrevue || '';
+  document.getElementById('cotisation-date').value = aujourdhuiISO();
+  document.getElementById('cotisation-note').value = '';
+  document.getElementById('erreur-cotisation-objectif').textContent = '';
+  document.getElementById('erreur-cotisation-montant').textContent = '';
+  document.getElementById('erreur-cotisation-date').textContent = '';
+  document.getElementById('voile-cotisation').classList.remove('cache');
+  document.getElementById('cotisation-montant').focus();
+}
+
+function enregistrerCotisation() {
+  const id = document.getElementById('cotisation-objectif').value || idObjectifCotisation;
+  const objectif = donnees.objectifs.find(function (o) { return o.id === id; });
+  const montant = Number(document.getElementById('cotisation-montant').value);
+  const date = document.getElementById('cotisation-date').value || aujourdhuiISO();
+  document.getElementById('erreur-cotisation-objectif').textContent = '';
+  document.getElementById('erreur-cotisation-montant').textContent = '';
+  document.getElementById('erreur-cotisation-date').textContent = '';
+  if (!objectif || objectif.statut !== 'encours') { document.getElementById('erreur-cotisation-objectif').textContent = 'Choisis un objectif en cours.'; return; }
+  if (!Number.isSafeInteger(montant) || montant < 1) { document.getElementById('erreur-cotisation-montant').textContent = 'Entre un montant entier supérieur à zéro.'; return; }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > aujourdhuiISO()) { document.getElementById('erreur-cotisation-date').textContent = 'Choisis une date valide qui n’est pas dans le futur.'; return; }
+  const avant = JSON.stringify(donnees);
+  objectif.cotisations.push({ id: nouvelIdentifiant(), montant: montant, date: date, note: document.getElementById('cotisation-note').value.trim(), creeLe: Date.now() });
+  if (!enregistrerDonnees()) { donnees = JSON.parse(avant); rendreTout(); return; }
+  document.getElementById('voile-cotisation').classList.add('cache');
+  rendreTout();
+}
+
+function supprimerCotisation(objectifId, cotisationId) {
+  const objectif = donnees.objectifs.find(function (o) { return o.id === objectifId; });
+  if (!objectif) return;
+  const cotisation = objectif.cotisations.find(function (c) { return c.id === cotisationId; });
+  if (!cotisation || !confirm('Retirer cette cotisation de ' + formaterMontant(cotisation.montant) + ' de l’historique ?')) return;
+  const avant = JSON.stringify(donnees);
+  objectif.cotisations = objectif.cotisations.filter(function (c) { return c.id !== cotisationId; });
+  if (!enregistrerDonnees()) { donnees = JSON.parse(avant); rendreTout(); return; }
+  rendreTout();
+}
+
+function ouvrirFormulaireAchat(id) {
+  const objectif = donnees.objectifs.find(function (o) { return o.id === id; });
+  if (!objectif || objectif.statut !== 'encours' || objectif.achat) return;
+  idObjectifAchat = id;
+  document.getElementById('resume-achat').textContent = 'Objectif : ' + objectif.nom + ' · prix cible : ' + formaterMontant(objectif.cible) + '.';
+  document.getElementById('achat-montant').value = objectif.cible;
+  document.getElementById('achat-date').value = aujourdhuiISO();
+  const categorie = document.getElementById('achat-categorie');
+  categorie.replaceChildren();
+  donnees.reglages.categories.forEach(function (nom) { const option = document.createElement('option'); option.value = nom; option.textContent = nom; categorie.appendChild(option); });
+  categorie.value = donnees.reglages.categories.includes('Divers') ? 'Divers' : (donnees.reglages.categories[0] || '');
+  document.getElementById('achat-clore').checked = true;
+  document.getElementById('erreur-achat-montant').textContent = '';
+  document.getElementById('voile-achat').classList.remove('cache');
+  document.getElementById('achat-montant').focus();
+}
+
+function enregistrerAchatObjectif() {
+  const objectif = donnees.objectifs.find(function (o) { return o.id === idObjectifAchat; });
+  const montant = Number(document.getElementById('achat-montant').value);
+  const date = document.getElementById('achat-date').value || aujourdhuiISO();
+  const categorie = document.getElementById('achat-categorie').value;
+  document.getElementById('erreur-achat-montant').textContent = '';
+  if (!objectif || objectif.statut !== 'encours' || objectif.achat) return;
+  if (!Number.isSafeInteger(montant) || montant < 1) { document.getElementById('erreur-achat-montant').textContent = 'Entre le prix réellement payé, supérieur à zéro.'; return; }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > aujourdhuiISO() || !categorie) { document.getElementById('erreur-achat-montant').textContent = 'Vérifie la date et la catégorie de l’achat.'; return; }
+  const avant = JSON.stringify(donnees);
+  const transactionId = nouvelIdentifiant();
+  const statutAvantAchat = objectif.statut;
+  donnees.transactions.push({ id: transactionId, creeLe: Date.now(), type: 'depense', montant: montant, date: date,
+    categorie: categorie, activiteId: '', objectifId: objectif.id, moyen: '',
+    note: 'Achat effectué : ' + objectif.nom, justificatif: '', source: '', destination: '' });
+  objectif.achat = { transactionId: transactionId, montant: montant, date: date, categorie: categorie, statutAvantAchat: statutAvantAchat };
+  if (document.getElementById('achat-clore').checked) objectif.statut = 'termine';
+  if (!enregistrerDonnees()) { donnees = JSON.parse(avant); rendreTout(); return; }
+  document.getElementById('voile-achat').classList.add('cache');
+  moisFiltre = date.slice(0, 7);
+  rendreTout();
+}
+
+/* ---------- 9. Tableau de bord (accueil) ---------- */
 
 /* Met à jour les totaux et le libellé de la période. */
 function rendreTableauDeBord() {
@@ -652,9 +1073,10 @@ function rendreTableauDeBord() {
   document.getElementById('libelle-periode').textContent = libelle;
   rendreAlertesBudget();
   rendreResumeActivites();
+  rendreResumeObjectifs();
 }
 
-/* ---------- 8. Écran Transactions ---------- */
+/* ---------- 10. Écran Transactions ---------- */
 
 /* Liste les mois qui contiennent des transactions, plus le mois
    courant, du plus récent au plus ancien. */
@@ -800,7 +1222,7 @@ function nomActivite(id) {
   return activite ? activite.nom : '';
 }
 
-/* ---------- 9. Formulaire d'ajout et de modification ---------- */
+/* ---------- 11. Formulaire d'ajout et de modification ---------- */
 
 /* Ouvre le formulaire.
    - mode 'depense', 'revenu' ou 'transfert' : ajout pré-rempli ;
@@ -821,6 +1243,7 @@ function ouvrirFormulaire(mode, id) {
     const tr = donnees.transactions.find(function (t) { return t.id === id; });
 
     champType.value = tr.type;
+    champType.disabled = Boolean(tr.objectifId);
     document.getElementById('champ-montant').value = tr.montant;
     document.getElementById('champ-date').value = tr.date;
     document.getElementById('champ-categorie').value = tr.categorie || '';
@@ -835,6 +1258,7 @@ function ouvrirFormulaire(mode, id) {
     boutonSupprimer.hidden = false;
   } else {
     reinitialiserFormulaire();
+    champType.disabled = false;
     champType.value = mode; /* 'depense', 'revenu' ou 'transfert' */
 
     const titres = {
@@ -1013,6 +1437,14 @@ function enregistrerFormulaire() {
     tr.justificatif = justificatif;
     tr.source = valeurs.source;
     tr.destination = valeurs.destination;
+    if (tr.objectifId) {
+      const objectifLie = donnees.objectifs.find(function (o) { return o.id === tr.objectifId; });
+      if (objectifLie && objectifLie.achat && objectifLie.achat.transactionId === tr.id) {
+        objectifLie.achat.montant = valeurs.montant;
+        objectifLie.achat.date = valeurs.date;
+        objectifLie.achat.categorie = valeurs.categorie;
+      }
+    }
   } else {
     /* Ajout : nouvelle transaction avec un identifiant unique.
        creeLe (horodatage de création) sert à trier les saisies
@@ -1055,7 +1487,9 @@ function supprimerTransaction(id) {
   }
 
   const libelleType = tr.type === 'revenu' ? 'ce revenu' : (tr.type === 'depense' ? 'cette dépense' : 'ce transfert');
-  const confirmation = confirm('Supprimer ' + libelleType + ' de ' + formaterMontant(tr.montant) + ' ?');
+  const objectifLie = tr.objectifId ? donnees.objectifs.find(function (o) { return o.id === tr.objectifId; }) : null;
+  const confirmation = confirm('Supprimer ' + libelleType + ' de ' + formaterMontant(tr.montant) +
+    (objectifLie ? ' ? Cela retirera aussi l’achat de l’objectif « ' + objectifLie.nom + ' » et le rouvrira.' : ' ?'));
   if (!confirmation) {
     return;
   }
@@ -1063,6 +1497,10 @@ function supprimerTransaction(id) {
   /* filter() garde toutes les transactions sauf celle-ci. */
   const avantSuppression = JSON.stringify(donnees);
   donnees.transactions = donnees.transactions.filter(function (t) { return t.id !== id; });
+  if (objectifLie && objectifLie.achat && objectifLie.achat.transactionId === id) {
+    objectifLie.statut = objectifLie.achat.statutAvantAchat;
+    objectifLie.achat = null;
+  }
   if (!enregistrerDonnees()) {
     donnees = JSON.parse(avantSuppression);
     rendreTout();
@@ -1072,7 +1510,7 @@ function supprimerTransaction(id) {
   rendreTout();
 }
 
-/* ---------- 10. Paramètres ---------- */
+/* ---------- 12. Paramètres ---------- */
 
 /* Affiche la liste des catégories dans l'écran Paramètres. */
 function rendreParametres() {
@@ -1339,12 +1777,13 @@ function effacerToutesLesDonnees() {
   rendreTout();
 }
 
-/* ---------- 11. Branchement des événements ---------- */
+/* ---------- 13. Branchement des événements ---------- */
 
 /* Met à jour tout ce qui s'affiche à l'écran. */
 function rendreTout() {
   rendreActivites();
   rendreBudgets();
+  rendreObjectifs();
   rendreTableauDeBord();
   remplirFiltreMois();
   rendreTransactions();
@@ -1368,6 +1807,8 @@ function installerEcouteurs() {
 
   document.getElementById('btn-nouvelle-activite').addEventListener('click', function () { ouvrirFormulaireActivite(null); });
   document.getElementById('btn-nouveau-budget').addEventListener('click', function () { ouvrirFormulaireBudget(null); });
+  document.getElementById('btn-nouvel-objectif').addEventListener('click', function () { ouvrirFormulaireObjectif(null); });
+  document.getElementById('btn-cotisation-rapide').addEventListener('click', function () { ouvrirFormulaireCotisation(null); });
   document.getElementById('mois-budget').addEventListener('change', rendreBudgets);
   document.getElementById('budget-type').addEventListener('change', actualiserTypeBudget);
   document.getElementById('formulaire-activite').addEventListener('submit', function (e) {
@@ -1377,6 +1818,18 @@ function installerEcouteurs() {
   document.getElementById('formulaire-budget').addEventListener('submit', function (e) {
     e.preventDefault();
     enregistrerBudget();
+  });
+  document.getElementById('formulaire-objectif').addEventListener('submit', function (e) {
+    e.preventDefault();
+    enregistrerObjectif();
+  });
+  document.getElementById('formulaire-cotisation').addEventListener('submit', function (e) {
+    e.preventDefault();
+    enregistrerCotisation();
+  });
+  document.getElementById('formulaire-achat').addEventListener('submit', function (e) {
+    e.preventDefault();
+    enregistrerAchatObjectif();
   });
   document.querySelectorAll('[data-fermer]').forEach(function (bouton) {
     bouton.addEventListener('click', function () {
@@ -1438,7 +1891,7 @@ function installerEcouteurs() {
       fermerFormulaire();
     }
   });
-  ['voile-activite', 'voile-budget'].forEach(function (idVoile) {
+  ['voile-activite', 'voile-budget', 'voile-objectif', 'voile-cotisation', 'voile-achat'].forEach(function (idVoile) {
     document.getElementById(idVoile).addEventListener('click', function (e) {
       if (e.target.id === idVoile) e.target.classList.add('cache');
     });
@@ -1450,6 +1903,9 @@ function installerEcouteurs() {
       fermerFormulaire();
       document.getElementById('voile-activite').classList.add('cache');
       document.getElementById('voile-budget').classList.add('cache');
+      document.getElementById('voile-objectif').classList.add('cache');
+      document.getElementById('voile-cotisation').classList.add('cache');
+      document.getElementById('voile-achat').classList.add('cache');
     }
   });
 
@@ -1477,7 +1933,7 @@ function installerEcouteurs() {
   document.getElementById('btn-effacer-donnees').addEventListener('click', effacerToutesLesDonnees);
 }
 
-/* ---------- 12. Démarrage ---------- */
+/* ---------- 14. Démarrage ---------- */
 
 /* Le script est chargé avec "defer" : le HTML est complètement
    construit quand ces lignes s'exécutent. */

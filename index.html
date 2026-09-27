@@ -44,9 +44,9 @@
       <div class="ajout-rapide">
         <button type="button" class="btn btn-depense" data-ouvrir="depense">− Dépense</button>
         <button type="button" class="btn btn-revenu" data-ouvrir="revenu">+ Revenu</button>
-        <button type="button" class="btn" disabled title="Disponible à l'étape 4 du plan">Cotisation</button>
+        <button type="button" class="btn" id="btn-cotisation-rapide">Cotisation</button>
       </div>
-      <p class="note">La cotisation vers un objectif d'épargne arrivera avec les objectifs (étape 4 du plan).</p>
+      <p class="note">Une cotisation est une somme affectée à un objectif ; elle n'est pas comptée comme une dépense.</p>
 
       <!-- Choix de la période affichée -->
       <div class="carte">
@@ -92,8 +92,8 @@
       </div>
 
       <div class="carte">
-        <h2>Objectifs d'épargne</h2>
-        <p class="note">Les objectifs d'épargne et leurs cotisations arrivent à l'étape 4 du plan.</p>
+        <div class="ligne-flex"><h2>Objectifs d'épargne</h2><button type="button" class="btn btn-secondaire" data-ecran="objectifs">Voir les objectifs</button></div>
+        <div id="resume-objectifs"></div>
       </div>
 
       <div class="carte">
@@ -149,13 +149,9 @@
     <!-- ============ ÉCRAN 5 : OBJECTIFS D'ÉPARGNE (étape 4 du plan) ============ -->
     <section id="ecran-objectifs" class="ecran">
       <div class="carte">
-        <h2>Objectifs d'épargne</h2>
-        <p>Cet écran sera construit à l'étape 4 du plan. Il permettra de :</p>
-        <ul class="liste-simple">
-          <li>créer un objectif d'achat avec un prix cible et une date souhaitée ;</li>
-          <li>enregistrer des cotisations et voir le montant restant recalculé ;</li>
-          <li>enregistrer l'achat effectué (une seule dépense réelle, sans compter les cotisations comme dépenses).</li>
-        </ul>
+        <div class="ligne-flex"><div><h2>Objectifs d'épargne</h2><p class="note">Suis ce que tu veux acheter, les sommes mises de côté et le rythme à tenir.</p></div><button type="button" class="btn btn-principal" id="btn-nouvel-objectif">+ Nouvel objectif</button></div>
+        <div id="liste-objectifs" class="liste-cartes"></div>
+        <p id="objectifs-vides" class="vide">Aucun objectif. Commence par indiquer ce que tu veux acheter ou financer.</p>
       </div>
     </section>
 
@@ -216,7 +212,7 @@
   </main>
 
   <footer class="pied">
-    <p>Cap — version 0.3 (étapes 1 à 3). Données enregistrées uniquement sur cet appareil ; pense à les sauvegarder.</p>
+    <p>Cap — version 0.4 (étapes 1 à 4). Données enregistrées uniquement sur cet appareil ; pense à les sauvegarder.</p>
   </footer>
 
   <!-- ============ FORMULAIRE DE TRANSACTION (superposition) ============ -->
@@ -291,6 +287,55 @@
           <button type="button" class="btn btn-danger" id="btn-supprimer" hidden>Supprimer</button>
         </div>
 
+      </form>
+    </div>
+  </section>
+
+  <!-- ============ FORMULAIRE D'OBJECTIF ============ -->
+  <section id="voile-objectif" class="voile cache" role="dialog" aria-modal="true" aria-labelledby="titre-objectif">
+    <div class="voile-carte">
+      <h2 id="titre-objectif">Nouvel objectif</h2>
+      <form id="formulaire-objectif" novalidate>
+        <div class="champ champ-large"><label for="objectif-nom">Nom de l'objectif <span class="obligatoire">*</span></label><input id="objectif-nom" type="text" maxlength="80" placeholder="ex : Acheter un ordinateur"><small class="message-erreur" id="erreur-objectif-nom"></small></div>
+        <div class="champ"><label for="objectif-cible">Prix cible (FCFA) <span class="obligatoire">*</span></label><input id="objectif-cible" type="number" min="1" step="1" inputmode="numeric"><small class="message-erreur" id="erreur-objectif-cible"></small></div>
+        <div class="champ"><label for="objectif-montant-initial">Déjà mis de côté</label><input id="objectif-montant-initial" type="number" min="0" step="1" inputmode="numeric" value="0"><small class="message-erreur" id="erreur-objectif-initial"></small></div>
+        <div class="champ"><label for="objectif-date">Date souhaitée</label><input id="objectif-date" type="date"><small class="message-erreur" id="erreur-objectif-date"></small></div>
+        <div class="champ"><label for="objectif-frequence">Fréquence de cotisation</label><select id="objectif-frequence"><option value="hebdomadaire">Chaque semaine</option><option value="mensuelle">Chaque mois</option></select></div>
+        <div class="champ"><label for="objectif-cotisation-prevue">Montant prévu par cotisation (facultatif)</label><input id="objectif-cotisation-prevue" type="number" min="1" step="1" inputmode="numeric"><small class="message-erreur" id="erreur-objectif-cotisation"></small></div>
+        <div class="champ"><label for="objectif-reserve">Compte ou réserve (facultatif)</label><input id="objectif-reserve" type="text" maxlength="80" placeholder="ex : épargne Mobile Money"></div>
+        <div class="champ"><label for="objectif-statut">Statut</label><select id="objectif-statut"><option value="encours">En cours</option><option value="termine">Terminé</option></select></div>
+        <p class="message-erreur champ-large" id="erreur-objectif-formulaire" aria-live="polite"></p>
+        <div class="actions-formulaire champ-large"><button type="button" class="btn btn-secondaire" data-fermer="objectif">Annuler</button><button type="submit" class="btn btn-principal">Enregistrer</button></div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ============ FORMULAIRE DE COTISATION ============ -->
+  <section id="voile-cotisation" class="voile cache" role="dialog" aria-modal="true" aria-labelledby="titre-cotisation">
+    <div class="voile-carte">
+      <h2 id="titre-cotisation">Ajouter une cotisation</h2>
+      <form id="formulaire-cotisation" novalidate>
+        <div class="champ champ-large"><label for="cotisation-objectif">Objectif <span class="obligatoire">*</span></label><select id="cotisation-objectif"></select><small class="message-erreur" id="erreur-cotisation-objectif"></small></div>
+        <div class="champ"><label for="cotisation-montant">Montant (FCFA) <span class="obligatoire">*</span></label><input id="cotisation-montant" type="number" min="1" step="1" inputmode="numeric"><small class="message-erreur" id="erreur-cotisation-montant"></small></div>
+        <div class="champ"><label for="cotisation-date">Date</label><input id="cotisation-date" type="date"><small class="message-erreur" id="erreur-cotisation-date"></small></div>
+        <div class="champ champ-large"><label for="cotisation-note">Note (facultatif)</label><input id="cotisation-note" type="text" maxlength="160" placeholder="ex : mise de côté après un cours"></div>
+        <div class="actions-formulaire champ-large"><button type="button" class="btn btn-secondaire" data-fermer="cotisation">Annuler</button><button type="submit" class="btn btn-principal">Enregistrer la cotisation</button></div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ============ FORMULAIRE D'ACHAT ============ -->
+  <section id="voile-achat" class="voile cache" role="dialog" aria-modal="true" aria-labelledby="titre-achat">
+    <div class="voile-carte">
+      <h2 id="titre-achat">Enregistrer l'achat effectué</h2>
+      <form id="formulaire-achat" novalidate>
+        <p id="resume-achat" class="note"></p>
+        <div class="champ"><label for="achat-montant">Prix réellement payé (FCFA) <span class="obligatoire">*</span></label><input id="achat-montant" type="number" min="1" step="1" inputmode="numeric"><small class="message-erreur" id="erreur-achat-montant"></small></div>
+        <div class="champ"><label for="achat-date">Date de l'achat</label><input id="achat-date" type="date"></div>
+        <div class="champ champ-large"><label for="achat-categorie">Catégorie de dépense</label><select id="achat-categorie"></select></div>
+        <div class="champ champ-large"><label class="case-a-cocher"><input id="achat-clore" type="checkbox" checked> Clore l'objectif après l'achat</label></div>
+        <p class="note champ-large">L'achat sera enregistré une seule fois comme dépense. Les cotisations restent des affectations internes et ne sont pas ajoutées aux dépenses.</p>
+        <div class="actions-formulaire champ-large"><button type="button" class="btn btn-secondaire" data-fermer="achat">Annuler</button><button type="submit" class="btn btn-principal">Enregistrer l'achat</button></div>
       </form>
     </div>
   </section>
