@@ -253,16 +253,19 @@ function exporterSauvegarde() {
   afficherEtatSauvegarde('Sauvegarde JSON téléchargée. Conserve une copie hors de cet appareil.');
 }
 
-/* Exporte les transactions en fichier CSV (UTF-8 avec BOM pour Excel).
-   Toutes les transactions enregistrées sont incluses. */
-function exporterCSV() {
-  if (!donnees.transactions.length) {
+/* Exporte des transactions en fichier CSV (UTF-8 avec BOM pour Excel).
+   'transactions' : la liste à exporter (par défaut, toutes les
+   transactions enregistrées). 'suffixeNom' : ajouté au nom du fichier
+   pour distinguer un export filtré d'un export complet. */
+function exporterCSV(transactions, suffixeNom) {
+  const liste = transactions || donnees.transactions;
+  if (!liste.length) {
     afficherEtatSauvegarde("Aucune transaction à exporter.");
     return;
   }
   const BOM = '\uFEFF'; /* BOM UTF-8 : assure la compatibilité avec Excel */
   const entete = ['Date', 'Type', 'Montant', 'Catégorie', 'Activité', 'Moyen de paiement', 'Note', 'Objectif lié'].join(';');
-  const lignes = donnees.transactions
+  const lignes = liste
     .slice()
     .sort(function (a, b) { return a.date < b.date ? 1 : -1; })
     .map(function (t) {
@@ -286,16 +289,16 @@ function exporterCSV() {
       ].join(';');
     });
   telechargerTexte(
-    'cap-transactions-' + aujourdhuiISO() + '.csv',
+    'cap-transactions' + (suffixeNom ? '-' + suffixeNom : '') + '-' + aujourdhuiISO() + '.csv',
     BOM + entete + '\n' + lignes.join('\n'),
     'text/csv;charset=utf-8'
   );
-  afficherEtatSauvegarde('Export CSV téléchargé (' + donnees.transactions.length + ' transactions).');
+  afficherEtatSauvegarde('Export CSV téléchargé (' + liste.length + ' transactions).');
 }
 
 /* Affiche un bandeau de rappel si aucune sauvegarde n'a été faite
    depuis plus de JOURS_RAPPEL jours. */
-const JOURS_RAPPEL_SAUVEGARDE = 30;
+const JOURS_RAPPEL_SAUVEGARDE = 14;
 
 function verifierRappelSauvegarde() {
   const bandeau = document.getElementById('bandeau-rappel-sauvegarde');
@@ -2348,7 +2351,12 @@ function installerEcouteurs() {
     document.getElementById('rapport-mois').disabled = this.checked;
     rendreRapports();
   });
-  document.getElementById('btn-rapport-csv').addEventListener('click', exporterCSV);
+  document.getElementById('btn-rapport-csv').addEventListener('click', function () {
+    exporterCSV(transactionsRapport());
+  });
+  document.getElementById('btn-rapport-csv-tout').addEventListener('click', function () {
+    exporterCSV(donnees.transactions, 'tout');
+  });
   document.getElementById('budget-type').addEventListener('change', actualiserTypeBudget);
   document.getElementById('formulaire-activite').addEventListener('submit', function (e) {
     e.preventDefault();
@@ -2471,7 +2479,9 @@ function installerEcouteurs() {
 
   document.getElementById('btn-exporter').addEventListener('click', exporterSauvegarde);
   document.getElementById('btn-exporter-brut').addEventListener('click', exporterContenuBrut);
-  document.getElementById('btn-exporter-csv').addEventListener('click', exporterCSV);
+  document.getElementById('btn-exporter-csv').addEventListener('click', function () {
+    exporterCSV(donnees.transactions);
+  });
   document.getElementById('fichier-sauvegarde').addEventListener('change', function (e) {
     restaurerSauvegarde(e.target.files[0]);
   });
