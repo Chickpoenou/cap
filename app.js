@@ -581,7 +581,8 @@ function libelleJour(dateISO) {
 
 /* ---------- 4. Navigation entre les écrans ---------- */
 
-/* Écrans rangés sous un même onglet de la barre de navigation. */
+/* Sur téléphone, certains écrans sont rangés sous un même onglet de la
+   barre du bas (sur ordinateur, chaque écran a son propre bouton). */
 const ONGLET_DE_ECRAN = { investissements: 'objectifs', budgets: 'plus', rapports: 'plus', parametres: 'plus' };
 
 /* Affiche l'écran demandé et masque les autres. */
@@ -594,12 +595,16 @@ function afficherEcran(nom) {
     cible.classList.add('actif');
   }
   /* L'onglet correspondant passe en surbrillance. */
-  const onglet = ONGLET_DE_ECRAN[nom] || nom;
+  const groupe = ONGLET_DE_ECRAN[nom] || '';
   document.querySelectorAll('.onglet').forEach(function (bouton) {
-    const actif = bouton.dataset.ecran === onglet;
+    const actif = bouton.dataset.ecran === nom;
     bouton.classList.toggle('actif', actif);
+    bouton.classList.toggle('actif-groupe', bouton.dataset.ecran === groupe);
     if (actif) bouton.setAttribute('aria-current', 'page'); else bouton.removeAttribute('aria-current');
   });
+  /* Les graphiques prennent la largeur de leur bloc : on les redessine
+     quand l'accueil redevient visible. */
+  if (nom === 'accueil') rendreGraphiques();
   document.querySelectorAll('.segment').forEach(function (segment) {
     const actif = segment.dataset.ecran === nom;
     segment.classList.toggle('actif', actif);
@@ -1218,7 +1223,6 @@ function rendreResumeObjectifs() {
   conteneur.replaceChildren();
   const objectifs = objectifsEnCours().slice(0, 3);
   const aucun = objectifsEnCours().length === 0;
-  document.getElementById('btn-cotisation-rapide').disabled = aucun;
   document.querySelectorAll('[data-action="cotiser"]').forEach(function (bouton) { bouton.disabled = aucun; });
   if (!objectifs.length) {
     conteneur.appendChild(messageVide('Aucun objectif en cours.'));
@@ -2143,16 +2147,16 @@ function exporterRapportCSV() {
 function rendreTableauDeBord() {
   const resume = totaux(transactionsDeLaPeriode());
 
-  document.getElementById('total-revenus').textContent = formaterNombre(resume.revenus);
-  document.getElementById('total-depenses').textContent = formaterNombre(resume.depenses);
+  document.getElementById('total-revenus').textContent = formaterMontant(resume.revenus);
+  document.getElementById('total-depenses').textContent = formaterMontant(resume.depenses);
 
   /* Le "+" n'est écrit que pour un solde positif ; le signe "-"
      est déjà ajouté automatiquement par le formatage des nombres.
      La devise est affichée plus petite que le montant. */
-  const devise = document.createElement('span');
-  devise.className = 'devise';
-  devise.textContent = donnees.reglages.devise;
-  document.getElementById('total-solde').replaceChildren((resume.solde > 0 ? '+' : '') + resume.solde.toLocaleString('fr-FR'), devise);
+  const elementSolde = document.getElementById('total-solde');
+  elementSolde.textContent = (resume.solde > 0 ? '+' : '') + formaterMontant(resume.solde);
+  elementSolde.classList.toggle('positif', resume.solde > 0);
+  elementSolde.classList.toggle('negatif', resume.solde < 0);
 
   /* Libellé de la période, sous les boutons de choix. */
   const bornes = bornesPeriode();
@@ -2171,11 +2175,251 @@ function rendreTableauDeBord() {
   }
 
   document.getElementById('libelle-periode').textContent = libelle;
+  rendreGraphiques();
   rendreOperationsRecentes();
   rendreAlertesBudget();
   rendreResumeActivites();
   rendreResumeObjectifs();
   rendreResumeInvestissements();
+}
+
+/* ---------- 9 bis. Graphiques de l'accueil ---------- */
+
+/* Dessinés en SVG, sans bibliothèque : l'application reste utilisable
+   hors ligne. Couleurs des catégories vérifiées pour le daltonisme ;
+   chaque part est aussi écrite en clair dans la légende. */
+const NS_SVG = 'http://www.w3.org/2000/svg';
+const COULEURS_CATEGORIES = ['#0f9e8f', '#e0a019', '#3f6fd1', '#e0603f'];
+const COULEUR_AUTRES = '#94a3b8';
+
+function elementSvg(nom, attributs) {
+  const element = document.createElementNS(NS_SVG, nom);
+  Object.keys(attributs || {}).forEach(function (cle) { element.setAttribute(cle, attributs[cle]); });
+  return element;
+}
+
+/* 1 250 000 → "1,3 M" ; 45 000 → "45 k" : pour les axes seulement. */
+function formaterCompact(nombre) {
+  const absolu = Math.abs(nombre);
+  if (absolu >= 1000000) return (nombre / 1000000).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' M';
+  if (absolu >= 1000) return Math.round(nombre / 1000).toLocaleString('fr-FR') + ' k';
+  return String(nombre);
+}
+
+function formaterJourCourt(dateISO) {
+  return new Date(dateISO + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+}
+
+function rendreGraphiques() {
+  rendreGraphiqueEvolution();
+  rendreGraphiqueCategories();
+}
+
+/* Solde cumulé jour par jour sur la période (jusqu'à aujourd'hui pour
+   le mois en cours), avec ligne de repère et infobulle au survol. */
+function rendreGraphiqueEvolution() {
+  const conteneur = document.getElementById('graphique-evolution');
+  conteneur.replaceChildren();
+  const bornes = bornesPeriode();
+  if (!bornes.debut || !bornes.fin || bornes.debut > bornes.fin) {
+    conteneur.appendChild(messageVide('Choisis une période valide.'));
+    return;
+  }
+  const aujourdHui = aujourdhuiISO();
+  const fin = bornes.fin > aujourdHui && bornes.debut <= aujourdHui ? aujourdHui : bornes.fin;
+  const transactions = donnees.transactions.filter(function (t) { return t.date >= bornes.debut && t.date <= fin && t.type !== 'transfert'; });
+  if (!transactions.length) {
+    conteneur.appendChild(messageVide('Aucune transaction sur cette période.'));
+    return;
+  }
+
+  const parJour = new Map();
+  transactions.forEach(function (t) {
+    parJour.set(t.date, (parJour.get(t.date) || 0) + (t.type === 'revenu' ? t.montant : -t.montant));
+  });
+  const points = [];
+  let cumul = 0;
+  const jour = new Date(bornes.debut + 'T12:00:00');
+  for (let i = 0; i < 400 && versISO(jour) <= fin; i++) {
+    const date = versISO(jour);
+    const variation = parJour.get(date) || 0;
+    cumul += variation;
+    points.push({ date: date, solde: cumul, variation: variation });
+    jour.setDate(jour.getDate() + 1);
+  }
+
+  const largeur = Math.max(280, conteneur.clientWidth || 560);
+  const hauteur = 200;
+  const marge = { haut: 12, droite: 12, bas: 26, gauche: 46 };
+  const valeurs = points.map(function (p) { return p.solde; });
+  let minimum = Math.min(0, Math.min.apply(null, valeurs));
+  let maximum = Math.max(0, Math.max.apply(null, valeurs));
+  if (minimum === maximum) maximum = minimum + 1;
+  const etendue = maximum - minimum;
+  minimum -= etendue * 0.05;
+  maximum += etendue * 0.08;
+  const x = function (i) {
+    return marge.gauche + (points.length === 1 ? 0.5 : i / (points.length - 1)) * (largeur - marge.gauche - marge.droite);
+  };
+  const y = function (v) { return marge.haut + (maximum - v) / (maximum - minimum) * (hauteur - marge.haut - marge.bas); };
+
+  const svg = elementSvg('svg', { viewBox: '0 0 ' + largeur + ' ' + hauteur, width: largeur, height: hauteur, role: 'img',
+    'aria-label': 'Solde cumulé du ' + formaterDateCourte(bornes.debut) + ' au ' + formaterDateCourte(fin) + ' : ' +
+      formaterMontant(points[points.length - 1].solde) + ' à la fin.' });
+
+  /* Repères horizontaux discrets : maximum, zéro, minimum. Un repère
+     trop proche d'un autre (moins de 14 px) est omis. */
+  const places = [];
+  [Math.max.apply(null, valeurs), 0, Math.min.apply(null, valeurs)].forEach(function (v) {
+    if (places.some(function (deja) { return Math.abs(y(deja) - y(v)) < 14; })) return;
+    places.push(v);
+    svg.appendChild(elementSvg('line', { x1: marge.gauche, x2: largeur - marge.droite, y1: y(v), y2: y(v), class: v === 0 ? 'axe-zero' : 'grille' }));
+    const etiquette = elementSvg('text', { x: marge.gauche - 8, y: y(v) + 4, 'text-anchor': 'end', class: 'etiquette-axe' });
+    etiquette.textContent = formaterCompact(v);
+    svg.appendChild(etiquette);
+  });
+
+  /* Dates : début, milieu, fin. */
+  [0, Math.floor((points.length - 1) / 2), points.length - 1]
+    .filter(function (v, i, liste) { return liste.indexOf(v) === i; })
+    .forEach(function (i, rang, liste) {
+      const etiquette = elementSvg('text', { x: x(i), y: hauteur - 6, class: 'etiquette-axe',
+        'text-anchor': liste.length === 1 ? 'middle' : (rang === 0 ? 'start' : (rang === liste.length - 1 ? 'end' : 'middle')) });
+      etiquette.textContent = formaterJourCourt(points[i].date);
+      svg.appendChild(etiquette);
+    });
+
+  const trace = points.map(function (p, i) { return (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(p.solde).toFixed(1); }).join(' ');
+  svg.appendChild(elementSvg('path', { d: trace + ' L' + x(points.length - 1).toFixed(1) + ' ' + y(0).toFixed(1) +
+    ' L' + x(0).toFixed(1) + ' ' + y(0).toFixed(1) + ' Z', class: 'aire' }));
+  svg.appendChild(elementSvg('path', { d: trace, class: 'courbe' }));
+  const dernier = points.length - 1;
+  svg.appendChild(elementSvg('circle', { cx: x(dernier), cy: y(points[dernier].solde), r: 4.5, class: 'point' }));
+
+  /* Survol : ligne verticale + point + infobulle sur le jour le plus proche. */
+  const repere = elementSvg('line', { y1: marge.haut, y2: hauteur - marge.bas, class: 'repere', visibility: 'hidden' });
+  const pointSurvol = elementSvg('circle', { r: 5, class: 'point', visibility: 'hidden' });
+  svg.append(repere, pointSurvol);
+  const zone = elementSvg('rect', { x: marge.gauche, y: 0, width: largeur - marge.gauche - marge.droite, height: hauteur, fill: 'transparent' });
+  svg.appendChild(zone);
+  const bulle = document.createElement('div');
+  bulle.className = 'infobulle';
+  bulle.hidden = true;
+
+  const montrer = function (evenement) {
+    const rect = svg.getBoundingClientRect();
+    const position = (evenement.clientX - rect.left) * largeur / rect.width;
+    const i = Math.max(0, Math.min(dernier, Math.round((position - marge.gauche) / (largeur - marge.gauche - marge.droite) * dernier)));
+    const p = points[i];
+    repere.setAttribute('x1', x(i));
+    repere.setAttribute('x2', x(i));
+    pointSurvol.setAttribute('cx', x(i));
+    pointSurvol.setAttribute('cy', y(p.solde));
+    repere.setAttribute('visibility', 'visible');
+    pointSurvol.setAttribute('visibility', 'visible');
+    bulle.replaceChildren();
+    const date = document.createElement('strong');
+    date.textContent = formaterDateLongue(p.date);
+    const solde = document.createElement('span');
+    solde.textContent = 'Solde : ' + formaterEcart(p.solde);
+    bulle.append(date, solde);
+    if (p.variation) {
+      const variation = document.createElement('span');
+      variation.textContent = 'Ce jour-là : ' + formaterEcart(p.variation);
+      bulle.appendChild(variation);
+    }
+    bulle.hidden = false;
+    const gauche = x(i) * rect.width / largeur;
+    bulle.style.left = Math.min(Math.max(gauche, 70), rect.width - 70) + 'px';
+    bulle.style.top = Math.max(0, y(p.solde) * rect.height / hauteur - 8) + 'px';
+  };
+  const cacher = function () {
+    repere.setAttribute('visibility', 'hidden');
+    pointSurvol.setAttribute('visibility', 'hidden');
+    bulle.hidden = true;
+  };
+  zone.addEventListener('pointermove', montrer);
+  zone.addEventListener('pointerdown', montrer);
+  zone.addEventListener('pointerleave', cacher);
+
+  conteneur.append(svg, bulle);
+}
+
+/* Anneau des dépenses par catégorie : les 4 plus grosses, puis
+   « Autres ». La légende donne montant et part de chacune. */
+function rendreGraphiqueCategories() {
+  const conteneur = document.getElementById('graphique-categories');
+  conteneur.replaceChildren();
+  const parCategorie = new Map();
+  transactionsDeLaPeriode().forEach(function (t) {
+    if (t.type !== 'depense') return;
+    const cle = t.categorie || 'Sans catégorie';
+    parCategorie.set(cle, (parCategorie.get(cle) || 0) + t.montant);
+  });
+  const triees = Array.from(parCategorie.entries()).sort(function (a, b) { return b[1] - a[1]; });
+  if (!triees.length) {
+    conteneur.appendChild(messageVide('Aucune dépense sur cette période.'));
+    return;
+  }
+  const parts = triees.slice(0, 4).map(function (entree, i) { return { nom: entree[0], montant: entree[1], couleur: COULEURS_CATEGORIES[i] }; });
+  const reste = triees.slice(4).reduce(function (somme, entree) { return somme + entree[1]; }, 0);
+  if (reste > 0) parts.push({ nom: 'Autres', montant: reste, couleur: COULEUR_AUTRES });
+  const total = parts.reduce(function (somme, part) { return somme + part.montant; }, 0);
+
+  const taille = 150;
+  const rayon = 56;
+  const epaisseur = 20;
+  const circonference = 2 * Math.PI * rayon;
+  const ecart = parts.length > 1 ? 2 : 0;   /* 2 px de fond entre deux parts */
+  const svg = elementSvg('svg', { viewBox: '0 0 ' + taille + ' ' + taille, width: taille, height: taille, role: 'img',
+    'aria-label': 'Dépenses par catégorie : ' + parts.map(function (part) {
+      return part.nom + ' ' + Math.round(part.montant / total * 100) + ' %';
+    }).join(', ') });
+  const groupe = elementSvg('g', { transform: 'rotate(-90 ' + taille / 2 + ' ' + taille / 2 + ')' });
+  let depart = 0;
+  parts.forEach(function (part) {
+    const longueur = part.montant / total * circonference;
+    const segment = elementSvg('circle', { cx: taille / 2, cy: taille / 2, r: rayon, fill: 'none', stroke: part.couleur,
+      'stroke-width': epaisseur, 'stroke-dasharray': Math.max(0, longueur - ecart) + ' ' + circonference,
+      'stroke-dashoffset': -depart });
+    const titre = elementSvg('title');
+    titre.textContent = part.nom + ' : ' + formaterMontant(part.montant) + ' (' + Math.round(part.montant / total * 100) + ' %)';
+    segment.appendChild(titre);
+    groupe.appendChild(segment);
+    depart += longueur;
+  });
+  svg.appendChild(groupe);
+  const centre = elementSvg('text', { x: taille / 2, y: taille / 2 + 2, 'text-anchor': 'middle', class: 'centre-anneau' });
+  centre.textContent = formaterCompact(total);
+  const sousCentre = elementSvg('text', { x: taille / 2, y: taille / 2 + 18, 'text-anchor': 'middle', class: 'etiquette-axe' });
+  sousCentre.textContent = donnees.reglages.devise;
+  svg.append(centre, sousCentre);
+
+  const legende = document.createElement('ul');
+  legende.className = 'legende';
+  parts.forEach(function (part) {
+    const li = document.createElement('li');
+    const pastille = document.createElement('span');
+    pastille.className = 'legende-pastille';
+    pastille.style.background = part.couleur;
+    const nom = document.createElement('span');
+    nom.className = 'legende-nom';
+    nom.textContent = part.nom;
+    const valeur = document.createElement('span');
+    valeur.className = 'legende-valeur';
+    valeur.textContent = Math.round(part.montant / total * 100) + ' %';
+    valeur.title = formaterMontant(part.montant);
+    const montant = document.createElement('small');
+    montant.textContent = formaterMontant(part.montant);
+    nom.appendChild(montant);
+    li.append(pastille, nom, valeur);
+    legende.appendChild(li);
+  });
+
+  const enveloppe = document.createElement('div');
+  enveloppe.className = 'anneau';
+  enveloppe.append(svg, legende);
+  conteneur.appendChild(enveloppe);
 }
 
 /* Les six dernières opérations saisies, toutes périodes confondues. */
@@ -2396,7 +2640,7 @@ function ouvrirFormulaire(mode, id) {
     document.getElementById('champ-source').value = tr.source || '';
     document.getElementById('champ-destination').value = tr.destination || '';
 
-    titre.textContent = 'Modifier l’opération';
+    titre.textContent = 'Modifier la transaction';
     boutonSupprimer.hidden = false;
   } else {
     reinitialiserFormulaire();
@@ -2408,7 +2652,7 @@ function ouvrirFormulaire(mode, id) {
       revenu: 'Ajouter un revenu',
       transfert: 'Ajouter un transfert interne'
     };
-    titre.textContent = titres[mode] || 'Nouvelle opération';
+    titre.textContent = titres[mode] || 'Nouvelle transaction';
     boutonSupprimer.hidden = true;
   }
 
@@ -2637,7 +2881,7 @@ function enregistrerFormulaire() {
     return;
   }
   fermerFormulaire();
-  proposerAnnulation(avantModification, modeFormulaire === 'modification' ? 'Opération modifiée.' : 'Opération ajoutée.');
+  proposerAnnulation(avantModification, modeFormulaire === 'modification' ? 'Transaction modifiée.' : 'Transaction ajoutée.');
 
   /* Le filtre saute sur le mois de la transaction enregistrée,
      pour que la saisie soit visible immédiatement. */
@@ -2674,7 +2918,7 @@ function supprimerTransaction(id) {
     return;
   }
   fermerFormulaire();
-  proposerAnnulation(avantSuppression, 'Opération supprimée.');
+  proposerAnnulation(avantSuppression, 'Transaction supprimée.');
   rendreTout();
 }
 
@@ -3108,7 +3352,6 @@ function installerEcouteurs() {
   document.getElementById('btn-nouvelle-activite').addEventListener('click', function () { ouvrirFormulaireActivite(null); });
   document.getElementById('btn-nouveau-budget').addEventListener('click', function () { ouvrirFormulaireBudget(null); });
   document.getElementById('btn-nouvel-objectif').addEventListener('click', function () { ouvrirFormulaireObjectif(null); });
-  document.getElementById('btn-cotisation-rapide').addEventListener('click', function () { ouvrirFormulaireCotisation(null); });
   document.getElementById('mois-budget').addEventListener('change', rendreBudgets);
   document.getElementById('budget-type').addEventListener('change', actualiserTypeBudget);
   document.getElementById('formulaire-activite').addEventListener('submit', function (e) {
@@ -3298,6 +3541,12 @@ document.getElementById('rapport-fin').value = periodeRapport.fin;
 
 installerEcouteurs();
 rendreTout();
+
+let minuteurRedimension = null;
+window.addEventListener('resize', function () {
+  clearTimeout(minuteurRedimension);
+  minuteurRedimension = setTimeout(rendreGraphiques, 150);
+});
 demanderStockagePersistant();
 
 /* Le service worker rend l'application installable et conserve

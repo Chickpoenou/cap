@@ -265,12 +265,13 @@ La première version est considérée utilisable si l'utilisateur peut :
 - Les exports CSV utilisent le séparateur « ; » et l'encodage UTF-8 pour Excel en français ; ils sont exclus du dépôt Git.
 - Le rappel de mise à jour apparaît dans les alertes de l'accueil ; les notifications du système ne sont pas gérées.
 
-### Interface (version 0.7)
+### Interface (version 0.8)
 
-- Style « porte-monnaie mobile » : solde de la période en tête sur fond vert, actions rapides (dépense, revenu, transfert, cotisation), dernières opérations, puis alertes, objectifs, activités et investissements.
-- Téléphone : barre d'onglets en bas (Accueil, Opérations, Activités, Épargne, Plus) et bouton + flottant. Ordinateur : menu à gauche, contenu centré, accueil sur deux colonnes.
-- Budgets, Rapports et Paramètres sont regroupés dans « Plus » ; Objectifs et Investissements dans « Épargne ».
-- La suppression d'une opération se fait depuis son formulaire de modification.
+- Ordinateur : menu bleu nuit à gauche avec un accès direct à chaque écran (Paramètres en bas), contenu centré.
+- Accueil « Aperçu financier » : période et bouton « Nouvelle saisie » en haut, rappel de sauvegarde, trois chiffres clés (revenus, dépenses, solde net sur carte sombre), graphique du solde cumulé jour par jour avec infobulle, anneau des dépenses par catégorie (4 plus grosses + « Autres », montant et part écrits dans la légende), objectifs, alertes, dernières transactions, activités et investissements.
+- Téléphone : barre d'onglets en bas (Accueil, Transactions, Activités, Épargne, Plus) et bouton + flottant ; Budgets, Rapports et Paramètres sont dans « Plus », Investissements dans « Épargne ».
+- Graphiques dessinés en SVG sans bibliothèque externe, pour rester utilisables hors ligne ; palette des catégories vérifiée pour le daltonisme.
+- La suppression d'une transaction se fait depuis son formulaire de modification.
 
 ### Catégories de dépenses par défaut (modifiables dans Paramètres)
 

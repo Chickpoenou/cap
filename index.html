@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0b4f42">
+  <meta name="theme-color" content="#10284a">
   <title>Cap — suivi des activités et des finances</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="cap.svg" type="image/svg+xml">
@@ -15,36 +15,42 @@
 
   <!-- Icônes : dessinées une fois ici, réutilisées avec <use href="#i-..."> -->
   <svg class="sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-    <symbol id="i-accueil" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9v11.5h13V9"/><path d="M10 20.5v-6h4v6"/></symbol>
+    <symbol id="i-accueil" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="9" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="5" rx="1.5"/><rect x="13.5" y="11.5" width="7" height="9" rx="1.5"/><rect x="3.5" y="15.5" width="7" height="5" rx="1.5"/></symbol>
     <symbol id="i-operations" viewBox="0 0 24 24"><path d="M7 4 3 8l4 4"/><path d="M3 8h13"/><path d="m17 12 4 4-4 4"/><path d="M21 16H8"/></symbol>
-    <symbol id="i-activites" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M8.5 7V5.5A2.5 2.5 0 0 1 11 3h2a2.5 2.5 0 0 1 2.5 2.5V7"/><path d="M3 13h18"/></symbol>
+    <symbol id="i-activites" viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 5 12 2.5-6h4"/></symbol>
+    <symbol id="i-budget" viewBox="0 0 24 24"><path d="M21 12A9 9 0 1 1 12 3v9h9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15V3.5z"/></symbol>
     <symbol id="i-epargne" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/></symbol>
-    <symbol id="i-plus-menu" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></symbol>
+    <symbol id="i-tendance" viewBox="0 0 24 24"><path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/></symbol>
+    <symbol id="i-rapport" viewBox="0 0 24 24"><path d="M6 2.5h8l5 5V21a.5.5 0 0 1-.5.5h-12A.5.5 0 0 1 6 21V2.5z"/><path d="M14 2.5V8h5"/><path d="M9 13h6M9 17h6"/></symbol>
+    <symbol id="i-reglages" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-plus-menu" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></symbol>
     <symbol id="i-ajouter" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
     <symbol id="i-sortie" viewBox="0 0 24 24"><path d="M7 17 17 7"/><path d="M9 7h8v8"/></symbol>
     <symbol id="i-entree" viewBox="0 0 24 24"><path d="M17 7 7 17"/><path d="M15 17H7V9"/></symbol>
     <symbol id="i-transfert" viewBox="0 0 24 24"><path d="M7 4 3 8l4 4"/><path d="M3 8h13"/><path d="m17 12 4 4-4 4"/><path d="M21 16H8"/></symbol>
     <symbol id="i-cotiser" viewBox="0 0 24 24"><circle cx="9" cy="9" r="6"/><path d="M14.5 9.6a6 6 0 1 1-5 8.9"/><path d="M9 6.5v5"/></symbol>
-    <symbol id="i-reglages" viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></symbol>
-    <symbol id="i-budget" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="14" rx="2.5"/><path d="M3 10.5h18"/><path d="M15.5 15h2"/><path d="M6 6V4.5h12V6"/></symbol>
-    <symbol id="i-rapport" viewBox="0 0 24 24"><path d="M4 20V11"/><path d="M10 20V5"/><path d="M16 20v-7"/><path d="M21 20H3"/></symbol>
+    <symbol id="i-calendrier" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></symbol>
+    <symbol id="i-bouclier" viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.5c0 4.5 3.2 8.2 7.5 9.5 4.3-1.3 7.5-5 7.5-9.5V6L12 3z"/></symbol>
+    <symbol id="i-alerte" viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15L6 16z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></symbol>
     <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
     <symbol id="i-retour" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></symbol>
-    <symbol id="i-alerte" viewBox="0 0 24 24"><path d="M12 3.5 2.5 20h19L12 3.5z"/><path d="M12 10v4.5"/><circle cx="12" cy="17.2" r=".6"/></symbol>
     <symbol id="i-sauvegarde" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v3h16v-3"/></symbol>
   </svg>
 
   <div class="app">
 
-    <!-- Navigation : barre en bas sur téléphone, colonne à gauche sur ordinateur -->
+    <!-- Navigation : colonne bleu nuit sur ordinateur, barre d'onglets en bas sur téléphone -->
     <nav class="navigation" aria-label="Navigation principale">
-      <div class="marque"><img src="cap.svg" alt="" width="32" height="32"><span>Cap</span></div>
+      <div class="marque"><span class="marque-logo" aria-hidden="true">C</span><span>Cap</span></div>
       <button type="button" class="onglet actif" data-ecran="accueil"><svg class="icone"><use href="#i-accueil"/></svg><span>Accueil</span></button>
-      <button type="button" class="onglet" data-ecran="transactions"><svg class="icone"><use href="#i-operations"/></svg><span>Opérations</span></button>
+      <button type="button" class="onglet" data-ecran="transactions"><svg class="icone"><use href="#i-operations"/></svg><span>Transactions</span></button>
       <button type="button" class="onglet" data-ecran="activites"><svg class="icone"><use href="#i-activites"/></svg><span>Activités</span></button>
-      <button type="button" class="onglet" data-ecran="objectifs"><svg class="icone"><use href="#i-epargne"/></svg><span>Épargne</span></button>
-      <button type="button" class="onglet" data-ecran="plus"><svg class="icone"><use href="#i-plus-menu"/></svg><span>Plus</span></button>
-      <button type="button" class="btn btn-principal nav-ajouter" data-action="feuille"><svg class="icone"><use href="#i-ajouter"/></svg>Nouvelle opération</button>
+      <button type="button" class="onglet seulement-ordi" data-ecran="budgets"><svg class="icone"><use href="#i-budget"/></svg><span>Budgets</span></button>
+      <button type="button" class="onglet" data-ecran="objectifs"><svg class="icone"><use href="#i-epargne"/></svg><span class="seulement-ordi">Objectifs</span><span class="seulement-mobile">Épargne</span></button>
+      <button type="button" class="onglet seulement-ordi" data-ecran="investissements"><svg class="icone"><use href="#i-tendance"/></svg><span>Investissements</span></button>
+      <button type="button" class="onglet seulement-ordi" data-ecran="rapports"><svg class="icone"><use href="#i-rapport"/></svg><span>Rapports</span></button>
+      <button type="button" class="onglet seulement-ordi onglet-bas" data-ecran="parametres"><svg class="icone"><use href="#i-reglages"/></svg><span>Paramètres</span></button>
+      <button type="button" class="onglet seulement-mobile" data-ecran="plus"><svg class="icone"><use href="#i-plus-menu"/></svg><span>Plus</span></button>
     </nav>
 
     <main class="contenu">
@@ -53,73 +59,86 @@
 
       <!-- ============ ACCUEIL ============ -->
       <section id="ecran-accueil" class="ecran actif">
-        <div class="accueil">
 
-          <div class="accueil-principal">
-            <!-- Solde de la période, façon carte de porte-monnaie -->
-            <section class="solde" aria-labelledby="titre-solde">
-              <div class="solde-haut">
-                <span class="logo-mobile">Cap</span>
-                <label class="choix-periode">
-                  <span class="sr-only">Période affichée</span>
-                  <select id="choix-periode">
-                    <option value="mois">Ce mois-ci</option>
-                    <option value="moisPrecedent">Mois précédent</option>
-                    <option value="perso">Dates au choix</option>
-                  </select>
-                </label>
-                <button type="button" id="btn-parametres" class="btn-rond-clair" aria-label="Paramètres"><svg class="icone"><use href="#i-reglages"/></svg></button>
-              </div>
-              <div id="dates-personnalisees" class="dates-solde cache">
-                <label>Du <input type="date" id="date-debut"></label>
-                <label>au <input type="date" id="date-fin"></label>
-              </div>
-              <p id="titre-solde" class="solde-libelle">Solde net · <span id="libelle-periode"></span></p>
-              <p id="total-solde" class="solde-montant">0 FCFA</p>
-              <div class="solde-flux">
-                <div><span class="flux-icone flux-entree"><svg class="icone"><use href="#i-entree"/></svg></span><span><small>Entrées</small><strong id="total-revenus">0 FCFA</strong></span></div>
-                <div><span class="flux-icone flux-sortie"><svg class="icone"><use href="#i-sortie"/></svg></span><span><small>Sorties</small><strong id="total-depenses">0 FCFA</strong></span></div>
-              </div>
-            </section>
-
-            <!-- Actions rapides -->
-            <div class="actions-rapides">
-              <button type="button" data-ouvrir="depense"><span class="pastille pastille-sortie"><svg class="icone"><use href="#i-sortie"/></svg></span>Dépense</button>
-              <button type="button" data-ouvrir="revenu"><span class="pastille pastille-entree"><svg class="icone"><use href="#i-entree"/></svg></span>Revenu</button>
-              <button type="button" data-ouvrir="transfert"><span class="pastille"><svg class="icone"><use href="#i-transfert"/></svg></span>Transfert</button>
-              <button type="button" id="btn-cotisation-rapide"><span class="pastille pastille-epargne"><svg class="icone"><use href="#i-cotiser"/></svg></span>Cotiser</button>
-            </div>
-
-            <div id="rappel-sauvegarde" class="bandeau bandeau-attention cache" role="status">
-              <svg class="icone"><use href="#i-sauvegarde"/></svg>
-              <p id="rappel-sauvegarde-texte"></p>
-              <button type="button" class="lien" id="btn-rappel-exporter">Sauvegarder</button>
-            </div>
-
-            <section class="bloc">
-              <div class="bloc-titre"><h2>Dernières opérations</h2><button type="button" class="lien" data-ecran="transactions">Tout voir</button></div>
-              <ul id="liste-recentes" class="liste-operations"></ul>
-              <p id="recentes-vides" class="vide">Aucune opération pour l'instant.</p>
-            </section>
+        <header class="entete-accueil">
+          <div>
+            <h1>Aperçu financier</h1>
+            <p id="libelle-periode" class="sous-titre"></p>
           </div>
+          <div class="entete-actions">
+            <label class="choix-periode">
+              <svg class="icone"><use href="#i-calendrier"/></svg>
+              <span class="sr-only">Période affichée</span>
+              <select id="choix-periode">
+                <option value="mois">Mois en cours</option>
+                <option value="moisPrecedent">Mois précédent</option>
+                <option value="perso">Dates au choix</option>
+              </select>
+            </label>
+            <button type="button" class="btn btn-principal btn-petit seulement-ordi" data-action="feuille"><svg class="icone"><use href="#i-ajouter"/></svg>Nouvelle saisie</button>
+            <button type="button" id="btn-parametres" class="btn-icone seulement-mobile" aria-label="Paramètres"><svg class="icone"><use href="#i-reglages"/></svg></button>
+          </div>
+        </header>
 
-          <div class="accueil-cote">
-            <section class="bloc" id="bloc-alertes">
-              <div class="bloc-titre"><h2>Alertes</h2></div>
-              <ul id="alertes-budget" class="liste-alertes"></ul>
-              <p id="alertes-vides" class="vide">Aucune alerte.</p>
-            </section>
+        <div id="dates-personnalisees" class="dates-perso cache">
+          <label>Du <input type="date" id="date-debut"></label>
+          <label>au <input type="date" id="date-fin"></label>
+        </div>
 
-            <section class="bloc">
-              <div class="bloc-titre"><h2>Objectifs</h2><button type="button" class="lien" data-ecran="objectifs">Tout voir</button></div>
-              <div id="resume-objectifs"></div>
-            </section>
+        <div id="rappel-sauvegarde" class="bandeau bandeau-attention cache" role="status">
+          <svg class="icone"><use href="#i-bouclier"/></svg>
+          <p id="rappel-sauvegarde-texte"></p>
+          <button type="button" class="btn btn-blanc btn-petit" id="btn-rappel-exporter">Exporter une sauvegarde</button>
+        </div>
 
+        <!-- Chiffres clés de la période -->
+        <div class="kpis">
+          <div class="kpi">
+            <div><p class="kpi-libelle">Revenus</p><p id="total-revenus" class="kpi-valeur">0 FCFA</p></div>
+            <span class="kpi-icone kpi-entree"><svg class="icone"><use href="#i-entree"/></svg></span>
+          </div>
+          <div class="kpi">
+            <div><p class="kpi-libelle">Dépenses</p><p id="total-depenses" class="kpi-valeur">0 FCFA</p></div>
+            <span class="kpi-icone kpi-sortie"><svg class="icone"><use href="#i-sortie"/></svg></span>
+          </div>
+          <div class="kpi kpi-solde">
+            <div><p class="kpi-libelle">Solde net</p><p id="total-solde" class="kpi-valeur">0 FCFA</p></div>
+          </div>
+        </div>
+
+        <div class="grille-accueil">
+          <section class="bloc zone-evolution" aria-labelledby="titre-evolution">
+            <div class="bloc-titre"><h2 id="titre-evolution">Évolution du solde</h2><span class="note">Cumul jour par jour</span></div>
+            <div id="graphique-evolution" class="graphique"></div>
+          </section>
+
+          <section class="bloc zone-categories" aria-labelledby="titre-categories">
+            <div class="bloc-titre"><h2 id="titre-categories">Par catégorie</h2><span class="note">Dépenses</span></div>
+            <div id="graphique-categories"></div>
+          </section>
+
+          <section class="bloc zone-objectifs">
+            <div class="bloc-titre"><h2>Objectifs</h2><button type="button" class="lien" data-ecran="objectifs">Tout voir</button></div>
+            <div id="resume-objectifs"></div>
+          </section>
+
+          <section class="bloc zone-alertes" id="bloc-alertes">
+            <div class="bloc-titre"><h2>Alertes</h2></div>
+            <ul id="alertes-budget" class="liste-alertes"></ul>
+            <p id="alertes-vides" class="vide">Aucune alerte.</p>
+          </section>
+
+          <section class="bloc zone-recentes">
+            <div class="bloc-titre"><h2>Dernières transactions</h2><button type="button" class="lien" data-ecran="transactions">Tout voir</button></div>
+            <ul id="liste-recentes" class="liste-operations"></ul>
+            <p id="recentes-vides" class="vide">Aucune transaction pour l'instant.</p>
+          </section>
+
+          <div class="zone-suivi">
             <section class="bloc">
               <div class="bloc-titre"><h2>Activités en cours</h2><button type="button" class="lien" data-ecran="activites">Tout voir</button></div>
               <div id="resume-activites"></div>
             </section>
-
             <section class="bloc">
               <div class="bloc-titre"><h2>Investissements</h2><button type="button" class="lien" data-ecran="investissements">Tout voir</button></div>
               <div id="resume-investissements"></div>
@@ -128,16 +147,17 @@
         </div>
       </section>
 
-      <!-- ============ OPÉRATIONS ============ -->
+      <!-- ============ TRANSACTIONS ============ -->
       <section id="ecran-transactions" class="ecran">
         <header class="entete-ecran">
-          <h1>Opérations</h1>
+          <h1>Transactions</h1>
           <select id="filtre-mois" class="select-compact" aria-label="Mois affiché"></select>
+          <button type="button" class="btn btn-principal btn-petit seulement-ordi" data-action="feuille"><svg class="icone"><use href="#i-ajouter"/></svg>Nouvelle saisie</button>
         </header>
         <p id="resume-mois" class="resume-mois"></p>
         <section class="bloc">
           <ul id="liste-transactions" class="liste-operations"></ul>
-          <p id="transactions-vide" class="vide">Aucune opération ce mois-ci.</p>
+          <p id="transactions-vide" class="vide">Aucune transaction ce mois-ci.</p>
         </section>
       </section>
 
@@ -154,10 +174,10 @@
       <!-- ============ ÉPARGNE : OBJECTIFS ============ -->
       <section id="ecran-objectifs" class="ecran">
         <header class="entete-ecran">
-          <h1>Épargne</h1>
+          <h1>Objectifs</h1>
           <button type="button" class="btn btn-principal btn-petit" id="btn-nouvel-objectif"><svg class="icone"><use href="#i-ajouter"/></svg>Objectif</button>
         </header>
-        <div class="segments" role="tablist">
+        <div class="segments seulement-mobile" role="tablist">
           <button type="button" class="segment actif" data-ecran="objectifs" role="tab" aria-selected="true">Objectifs</button>
           <button type="button" class="segment" data-ecran="investissements" role="tab" aria-selected="false">Investissements</button>
         </div>
@@ -168,10 +188,10 @@
       <!-- ============ ÉPARGNE : INVESTISSEMENTS ============ -->
       <section id="ecran-investissements" class="ecran">
         <header class="entete-ecran">
-          <h1>Épargne</h1>
+          <h1>Investissements</h1>
           <button type="button" id="btn-nouvel-investissement" class="btn btn-principal btn-petit"><svg class="icone"><use href="#i-ajouter"/></svg>Investissement</button>
         </header>
-        <div class="segments" role="tablist">
+        <div class="segments seulement-mobile" role="tablist">
           <button type="button" class="segment" data-ecran="objectifs" role="tab" aria-selected="false">Objectifs</button>
           <button type="button" class="segment actif" data-ecran="investissements" role="tab" aria-selected="true">Investissements</button>
         </div>
@@ -188,13 +208,13 @@
           <button type="button" data-ecran="rapports"><span class="pastille"><svg class="icone"><use href="#i-rapport"/></svg></span><span><strong>Rapports</strong><small>Bilans par période, export CSV</small></span><svg class="icone chevron"><use href="#i-chevron"/></svg></button>
           <button type="button" data-ecran="parametres"><span class="pastille"><svg class="icone"><use href="#i-reglages"/></svg></span><span><strong>Paramètres</strong><small>Sauvegarde, catégories, devise</small></span><svg class="icone chevron"><use href="#i-chevron"/></svg></button>
         </nav>
-        <p class="pied">Cap 0.7 · données enregistrées sur cet appareil uniquement</p>
+        <p class="pied">Cap 0.8 · données enregistrées sur cet appareil uniquement</p>
       </section>
 
       <!-- ============ BUDGETS ============ -->
       <section id="ecran-budgets" class="ecran">
         <header class="entete-ecran">
-          <button type="button" class="btn-retour" data-ecran="plus" aria-label="Retour"><svg class="icone"><use href="#i-retour"/></svg></button>
+          <button type="button" class="btn-retour seulement-mobile" data-ecran="plus" aria-label="Retour"><svg class="icone"><use href="#i-retour"/></svg></button>
           <h1>Budgets</h1>
           <button type="button" id="btn-nouveau-budget" class="btn btn-principal btn-petit"><svg class="icone"><use href="#i-ajouter"/></svg>Budget</button>
         </header>
@@ -206,7 +226,7 @@
       <!-- ============ RAPPORTS ============ -->
       <section id="ecran-rapports" class="ecran">
         <header class="entete-ecran">
-          <button type="button" class="btn-retour" data-ecran="plus" aria-label="Retour"><svg class="icone"><use href="#i-retour"/></svg></button>
+          <button type="button" class="btn-retour seulement-mobile" data-ecran="plus" aria-label="Retour"><svg class="icone"><use href="#i-retour"/></svg></button>
           <h1>Rapports</h1>
         </header>
         <section class="bloc">
@@ -232,7 +252,7 @@
       <!-- ============ PARAMÈTRES ============ -->
       <section id="ecran-parametres" class="ecran">
         <header class="entete-ecran">
-          <button type="button" class="btn-retour" data-ecran="plus" aria-label="Retour"><svg class="icone"><use href="#i-retour"/></svg></button>
+          <button type="button" class="btn-retour seulement-mobile" data-ecran="plus" aria-label="Retour"><svg class="icone"><use href="#i-retour"/></svg></button>
           <h1>Paramètres</h1>
         </header>
         <div class="grille-cartes">
@@ -295,12 +315,12 @@
   </div>
 
   <!-- Bouton flottant (téléphone) -->
-  <button type="button" class="fab" data-action="feuille" aria-label="Nouvelle opération"><svg class="icone"><use href="#i-ajouter"/></svg></button>
+  <button type="button" class="fab" data-action="feuille" aria-label="Nouvelle saisie"><svg class="icone"><use href="#i-ajouter"/></svg></button>
 
   <!-- Choix du type d'opération -->
   <section id="voile-feuille" class="voile cache" role="dialog" aria-modal="true" aria-label="Nouvelle opération">
     <div class="voile-carte feuille">
-      <h2>Nouvelle opération</h2>
+      <h2>Nouvelle saisie</h2>
       <div class="actions-rapides">
         <button type="button" data-ouvrir="depense"><span class="pastille pastille-sortie"><svg class="icone"><use href="#i-sortie"/></svg></span>Dépense</button>
         <button type="button" data-ouvrir="revenu"><span class="pastille pastille-entree"><svg class="icone"><use href="#i-entree"/></svg></span>Revenu</button>
@@ -319,7 +339,7 @@
   <!-- ============ FORMULAIRE DE TRANSACTION (superposition) ============ -->
   <section id="voile-formulaire" class="voile cache" role="dialog" aria-modal="true" aria-labelledby="titre-formulaire">
     <div class="voile-carte">
-      <h2 id="titre-formulaire">Nouvelle opération</h2>
+      <h2 id="titre-formulaire">Nouvelle transaction</h2>
 
       <form id="formulaire-transaction" novalidate>
 
