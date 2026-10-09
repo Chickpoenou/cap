@@ -230,6 +230,18 @@ button {
   letter-spacing: -0.02em;
 }
 
+.titre-accueil {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-entete {
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+}
+
 .sous-titre {
   color: var(--texte-2);
   font-size: 14px;

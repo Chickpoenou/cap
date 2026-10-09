@@ -267,7 +267,7 @@ La première version est considérée utilisable si l'utilisateur peut :
 
 ### Charte graphique (version 0.9)
 
-Logo : pièce de verre « CAP » au dégradé cyan → violet, avec barres montantes et flèche de croissance. Les icônes sont découpées dans l'image d'origine, fond transparent ; sur Android et iPhone, la pièce est posée sur l'indigo profond de l'application.
+Logo : pastille de verre « CAP » vue de face, au dégradé cyan → violet, avec barres montantes et flèche de croissance. Les icônes sont découpées dans l'image d'origine, fond transparent ; sur Android et iPhone, la pièce est posée sur l'indigo profond de l'application.
 
 | Rôle | Couleur | Usage |
 |---|---|---|
