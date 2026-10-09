@@ -2,7 +2,7 @@
 
 **Dossier du projet :** `suivi-activites`
 **Date :** 27 septembre 2026
-**Statut :** version 2 — base validée ; étapes 1 à 4 implémentées (application en version 0.5)
+**Statut :** version 2 — base validée ; étapes 1 à 6 implémentées (application en version 0.6), en attente de validation à l'usage
 
 ---
 
@@ -242,8 +242,9 @@ La première version est considérée utilisable si l'utilisateur peut :
 2. Construire le tableau de bord, la saisie des transactions et les sauvegardes JSON.
 3. Ajouter et suivre les activités, budgets et alertes (implémenté en version 0.3).
 4. Ajouter objectifs d'épargne et calcul des cotisations (implémenté en version 0.4 ; date estimée, rappel de sauvegarde et annulation en version 0.5).
-5. Ajouter investissements et rapports.
-6. Vérifier l'utilisation hors ligne, l'export et la restauration.
+5. Ajouter investissements et rapports (implémenté en version 0.6, avec export CSV).
+   - 5 bis (à faire) : pré-remplir une transaction en collant un SMS de confirmation Mobile Money ; analyse sur l'appareil uniquement, validation par l'utilisateur.
+6. Vérifier l'utilisation hors ligne, l'export et la restauration (vérifié en version 0.6 ; catégories, devise et rappel de mise à jour modifiables dans Paramètres).
 7. Ajouter la synchronisation en ligne seulement après validation de la version personnelle hors ligne.
 
 ---
@@ -256,6 +257,13 @@ La première version est considérée utilisable si l'utilisateur peut :
 - **PWA** : `manifest.json` + `service-worker.js` + icônes pour l'installation et le hors ligne.
 - **Hébergement statique** possible ensuite (GitHub Pages ou Render).
 - **Devise** : FCFA (XOF), formatée avec séparation des milliers.
+
+### Précisions de la version 0.6
+
+- Les apports à un investissement, comme les cotisations, ne sont pas comptés comme dépenses. Un revenu perçu d'un investissement ne compte dans le solde que s'il est aussi saisi comme revenu dans Transactions.
+- Variation estimée d'un investissement sur une période = valeur saisie à la fin − valeur au début − apports de la période.
+- Les exports CSV utilisent le séparateur « ; » et l'encodage UTF-8 pour Excel en français ; ils sont exclus du dépôt Git.
+- Le rappel de mise à jour apparaît dans les alertes de l'accueil ; les notifications du système ne sont pas gérées.
 
 ### Catégories de dépenses par défaut (modifiables dans Paramètres)
 

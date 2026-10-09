@@ -103,8 +103,8 @@
       </div>
 
       <div class="carte">
-        <h2>Investissements</h2>
-        <p class="note">Le suivi des investissements arrive à l'étape 5 du plan.</p>
+        <div class="ligne-flex"><h2>Investissements</h2><button type="button" class="btn btn-secondaire" data-ecran="investissements">Voir les investissements</button></div>
+        <div id="resume-investissements"></div>
       </div>
     </section>
 
@@ -161,29 +161,41 @@
       </div>
     </section>
 
-    <!-- ============ ÉCRAN 6 : INVESTISSEMENTS (étape 5 du plan) ============ -->
+    <!-- ============ ÉCRAN 6 : INVESTISSEMENTS ============ -->
     <section id="ecran-investissements" class="ecran">
       <div class="carte">
-        <h2>Investissements</h2>
-        <p>Cet écran sera construit à l'étape 5 du plan. Il permettra de :</p>
-        <ul class="liste-simple">
-          <li>suivre un investissement : montant investi, apports, valeur actuelle saisie à la main ;</li>
-          <li>voir l'écart estimé entre la valeur saisie et les apports cumulés.</li>
-        </ul>
+        <div class="ligne-flex">
+          <div><h2>Investissements</h2><p class="note">Valeurs saisies à la main : les écarts affichés sont des estimations, pas des prévisions. Les apports ne sont pas comptés comme dépenses.</p></div>
+          <button type="button" id="btn-nouvel-investissement" class="btn btn-principal">+ Nouvel investissement</button>
+        </div>
+        <p id="totaux-investissements" class="resume-financier"></p>
+        <div id="liste-investissements" class="liste-cartes"></div>
+        <p id="investissements-vides" class="vide">Aucun investissement. Ajoute par exemple une tontine, un terrain, un élevage ou des actions.</p>
       </div>
     </section>
 
-    <!-- ============ ÉCRAN 7 : RAPPORTS (étape 5 du plan) ============ -->
+    <!-- ============ ÉCRAN 7 : RAPPORTS ============ -->
     <section id="ecran-rapports" class="ecran">
       <div class="carte">
         <h2>Rapports</h2>
-        <p>Cet écran sera construit à l'étape 5 du plan. Il permettra de :</p>
-        <ul class="liste-simple">
-          <li>consulter les revenus, dépenses et résultats nets par mois, catégorie ou activité ;</li>
-          <li>comparer les prévisions aux résultats réels ;</li>
-          <li>exporter les données en CSV (étape 6 pour la sauvegarde complète).</li>
-        </ul>
+        <div class="choix-periode">
+          <button type="button" class="chip actif" data-raccourci="mois">Mois en cours</button>
+          <button type="button" class="chip" data-raccourci="moisPrecedent">Mois précédent</button>
+          <button type="button" class="chip" data-raccourci="annee">Cette année</button>
+          <button type="button" class="chip" data-raccourci="tout">Tout</button>
+        </div>
+        <div class="dates-personnalisees">
+          <label>Du <input type="date" id="rapport-debut"></label>
+          <label>au <input type="date" id="rapport-fin"></label>
+        </div>
+        <p id="rapport-erreur" class="message-erreur" aria-live="polite"></p>
+        <div class="actions-sauvegarde">
+          <button type="button" class="btn btn-secondaire" id="btn-csv-transactions">Exporter les transactions (CSV)</button>
+          <button type="button" class="btn btn-secondaire" id="btn-csv-rapport">Exporter ce rapport (CSV)</button>
+        </div>
+        <p class="note">Les fichiers CSV s'ouvrent dans Excel, LibreOffice ou Google Sheets. Ils contiennent tes données financières : garde-les en lieu sûr.</p>
       </div>
+      <div id="contenu-rapport"></div>
     </section>
 
     <!-- ============ ÉCRAN 8 : PARAMÈTRES ============ -->
@@ -204,10 +216,38 @@
 
       <div class="carte">
         <h2>Paramètres</h2>
-        <p><strong>Devise :</strong> FCFA (XOF)</p>
-        <p><strong>Catégories de dépenses :</strong></p>
-        <ul id="liste-categories-parametres" class="liste-simple"></ul>
-        <p class="note">La sauvegarde JSON est disponible. La modification des catégories et l'export CSV seront ajoutés dans une prochaine étape.</p>
+        <form id="formulaire-devise" class="champ" novalidate>
+          <label for="param-devise">Devise affichée</label>
+          <div class="ligne-saisie">
+            <input id="param-devise" type="text" maxlength="10" autocomplete="off">
+            <button type="submit" class="btn btn-secondaire">Enregistrer</button>
+          </div>
+          <small class="message-erreur" id="erreur-devise"></small>
+          <p class="note">Seul le libellé change : les montants restent des nombres entiers, sans conversion.</p>
+        </form>
+        <div class="champ">
+          <label for="param-rappel">Rappel de mise à jour</label>
+          <select id="param-rappel">
+            <option value="0">Jamais</option>
+            <option value="1">Après 1 jour sans saisie</option>
+            <option value="3">Après 3 jours sans saisie</option>
+            <option value="7">Après 7 jours sans saisie</option>
+          </select>
+          <p class="note">Le rappel s'affiche dans les alertes de l'accueil. Les notifications du téléphone ne sont pas gérées dans cette version.</p>
+        </div>
+      </div>
+
+      <div class="carte">
+        <h2>Catégories</h2>
+        <ul id="liste-categories-parametres" class="liste-categories"></ul>
+        <form id="formulaire-categorie" class="champ" novalidate>
+          <label for="nouvelle-categorie">Nouvelle catégorie</label>
+          <div class="ligne-saisie">
+            <input id="nouvelle-categorie" type="text" maxlength="60" placeholder="ex : Loyer">
+            <button type="submit" class="btn btn-secondaire">Ajouter</button>
+          </div>
+          <small class="message-erreur" id="erreur-categorie-parametre"></small>
+        </form>
       </div>
 
       <div class="carte carte-danger">
@@ -226,7 +266,7 @@
   </div>
 
   <footer class="pied">
-    <p>Cap — version 0.5 (étapes 1 à 4). Données enregistrées uniquement sur cet appareil ; pense à les sauvegarder.</p>
+    <p>Cap — version 0.6 (étapes 1 à 6). Données enregistrées uniquement sur cet appareil ; pense à les sauvegarder.</p>
   </footer>
 
   <!-- ============ FORMULAIRE DE TRANSACTION (superposition) ============ -->
@@ -246,7 +286,7 @@
         </div>
 
         <div class="champ">
-          <label for="champ-montant">Montant (FCFA) <span class="obligatoire">*</span></label>
+          <label for="champ-montant">Montant (<span class="libelle-devise">FCFA</span>) <span class="obligatoire">*</span></label>
           <input type="number" id="champ-montant" inputmode="numeric" min="1" step="1" placeholder="ex : 1500">
           <small class="message-erreur" id="erreur-montant"></small>
         </div>
@@ -317,7 +357,7 @@
       <h2 id="titre-objectif">Nouvel objectif</h2>
       <form id="formulaire-objectif" novalidate>
         <div class="champ champ-large"><label for="objectif-nom">Nom de l'objectif <span class="obligatoire">*</span></label><input id="objectif-nom" type="text" maxlength="80" placeholder="ex : Acheter un ordinateur"><small class="message-erreur" id="erreur-objectif-nom"></small></div>
-        <div class="champ"><label for="objectif-cible">Prix cible (FCFA) <span class="obligatoire">*</span></label><input id="objectif-cible" type="number" min="1" step="1" inputmode="numeric"><small class="message-erreur" id="erreur-objectif-cible"></small></div>
+        <div class="champ"><label for="objectif-cible">Prix cible (<span class="libelle-devise">FCFA</span>) <span class="obligatoire">*</span></label><input id="objectif-cible" type="number" min="1" step="1" inputmode="numeric"><small class="message-erreur" id="erreur-objectif-cible"></small></div>
         <div class="champ"><label for="objectif-montant-initial">Déjà mis de côté</label><input id="objectif-montant-initial" type="number" min="0" step="1" inputmode="numeric" value="0"><small class="message-erreur" id="erreur-objectif-initial"></small></div>
         <div class="champ"><label for="objectif-date">Date souhaitée</label><input id="objectif-date" type="date"><small class="message-erreur" id="erreur-objectif-date"></small></div>
         <div class="champ"><label for="objectif-frequence">Fréquence de cotisation</label><select id="objectif-frequence"><option value="hebdomadaire">Chaque semaine</option><option value="mensuelle">Chaque mois</option></select></div>
@@ -336,7 +376,7 @@
       <h2 id="titre-cotisation">Ajouter une cotisation</h2>
       <form id="formulaire-cotisation" novalidate>
         <div class="champ champ-large"><label for="cotisation-objectif">Objectif <span class="obligatoire">*</span></label><select id="cotisation-objectif"></select><small class="message-erreur" id="erreur-cotisation-objectif"></small></div>
-        <div class="champ"><label for="cotisation-montant">Montant (FCFA) <span class="obligatoire">*</span></label><input id="cotisation-montant" type="number" min="1" step="1" inputmode="numeric"><small class="message-erreur" id="erreur-cotisation-montant"></small></div>
+        <div class="champ"><label for="cotisation-montant">Montant (<span class="libelle-devise">FCFA</span>) <span class="obligatoire">*</span></label><input id="cotisation-montant" type="number" min="1" step="1" inputmode="numeric"><small class="message-erreur" id="erreur-cotisation-montant"></small></div>
         <div class="champ"><label for="cotisation-date">Date</label><input id="cotisation-date" type="date"><small class="message-erreur" id="erreur-cotisation-date"></small></div>
         <div class="champ champ-large"><label for="cotisation-note">Note (facultatif)</label><input id="cotisation-note" type="text" maxlength="160" placeholder="ex : mise de côté après un cours"></div>
         <div class="actions-formulaire champ-large"><button type="button" class="btn btn-secondaire" data-fermer="cotisation">Annuler</button><button type="submit" class="btn btn-principal">Enregistrer la cotisation</button></div>
@@ -350,12 +390,98 @@
       <h2 id="titre-achat">Enregistrer l'achat effectué</h2>
       <form id="formulaire-achat" novalidate>
         <p id="resume-achat" class="note"></p>
-        <div class="champ"><label for="achat-montant">Prix réellement payé (FCFA) <span class="obligatoire">*</span></label><input id="achat-montant" type="number" min="1" step="1" inputmode="numeric"><small class="message-erreur" id="erreur-achat-montant"></small></div>
+        <div class="champ"><label for="achat-montant">Prix réellement payé (<span class="libelle-devise">FCFA</span>) <span class="obligatoire">*</span></label><input id="achat-montant" type="number" min="1" step="1" inputmode="numeric"><small class="message-erreur" id="erreur-achat-montant"></small></div>
         <div class="champ"><label for="achat-date">Date de l'achat</label><input id="achat-date" type="date"></div>
         <div class="champ champ-large"><label for="achat-categorie">Catégorie de dépense</label><select id="achat-categorie"></select></div>
         <div class="champ champ-large"><label class="case-a-cocher"><input id="achat-clore" type="checkbox" checked> Clore l'objectif après l'achat</label></div>
         <p class="note champ-large">L'achat sera enregistré une seule fois comme dépense. Les cotisations restent des affectations internes et ne sont pas ajoutées aux dépenses.</p>
         <div class="actions-formulaire champ-large"><button type="button" class="btn btn-secondaire" data-fermer="achat">Annuler</button><button type="submit" class="btn btn-principal">Enregistrer l'achat</button></div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ============ FORMULAIRE D'INVESTISSEMENT ============ -->
+  <section id="voile-investissement" class="voile cache" role="dialog" aria-modal="true" aria-labelledby="titre-investissement">
+    <div class="voile-carte">
+      <h2 id="titre-investissement">Nouvel investissement</h2>
+      <form id="formulaire-investissement" novalidate>
+        <div class="champ champ-large">
+          <label for="investissement-nom">Nom <span class="obligatoire">*</span></label>
+          <input id="investissement-nom" type="text" maxlength="80" placeholder="ex : Tontine du quartier">
+          <small class="message-erreur" id="erreur-investissement-nom"></small>
+        </div>
+        <div class="champ">
+          <label for="investissement-type">Type</label>
+          <input id="investissement-type" type="text" maxlength="60" placeholder="ex : tontine, terrain, actions">
+        </div>
+        <div class="champ">
+          <label for="investissement-statut">Statut</label>
+          <select id="investissement-statut">
+            <option value="actif">Actif</option>
+            <option value="clos">Clos</option>
+          </select>
+        </div>
+        <div class="champ champ-creation-investissement">
+          <label for="investissement-apport">Premier apport (<span class="libelle-devise">FCFA</span>)</label>
+          <input id="investissement-apport" type="number" min="1" step="1" inputmode="numeric">
+          <small class="message-erreur" id="erreur-investissement-apport"></small>
+        </div>
+        <div class="champ champ-creation-investissement">
+          <label for="investissement-date">Date du premier apport</label>
+          <input id="investissement-date" type="date">
+          <small class="message-erreur" id="erreur-investissement-date"></small>
+        </div>
+        <div class="champ champ-large champ-creation-investissement">
+          <label for="investissement-valeur">Valeur estimée aujourd'hui (<span class="libelle-devise">FCFA</span>, facultatif)</label>
+          <input id="investissement-valeur" type="number" min="0" step="1" inputmode="numeric">
+          <small class="message-erreur" id="erreur-investissement-valeur"></small>
+        </div>
+        <div class="champ champ-large">
+          <label for="investissement-notes">Notes</label>
+          <textarea id="investissement-notes" rows="3" maxlength="500"></textarea>
+        </div>
+        <div class="actions-formulaire champ-large">
+          <button type="button" class="btn btn-secondaire" data-fermer="investissement">Annuler</button>
+          <button type="submit" class="btn btn-principal">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ============ FORMULAIRE D'OPÉRATION D'INVESTISSEMENT ============ -->
+  <section id="voile-operation" class="voile cache" role="dialog" aria-modal="true" aria-labelledby="titre-operation">
+    <div class="voile-carte">
+      <h2 id="titre-operation">Ajouter une opération</h2>
+      <form id="formulaire-operation" novalidate>
+        <p id="resume-operation" class="note champ-large"></p>
+        <div class="champ champ-large">
+          <label for="operation-type">Type d'opération</label>
+          <select id="operation-type">
+            <option value="apport">Apport (argent placé)</option>
+            <option value="revenu">Revenu perçu (intérêts, loyer, vente partielle…)</option>
+            <option value="frais">Frais</option>
+            <option value="valeur">Nouvelle valeur estimée</option>
+          </select>
+        </div>
+        <div class="champ">
+          <label for="operation-montant" id="libelle-operation-montant">Montant (<span class="libelle-devise">FCFA</span>) <span class="obligatoire">*</span></label>
+          <input id="operation-montant" type="number" min="0" step="1" inputmode="numeric">
+          <small class="message-erreur" id="erreur-operation-montant"></small>
+        </div>
+        <div class="champ">
+          <label for="operation-date">Date</label>
+          <input id="operation-date" type="date">
+          <small class="message-erreur" id="erreur-operation-date"></small>
+        </div>
+        <p id="aide-operation" class="note champ-large"></p>
+        <div class="champ champ-large">
+          <label for="operation-note">Note (facultatif)</label>
+          <input id="operation-note" type="text" maxlength="160">
+        </div>
+        <div class="actions-formulaire champ-large">
+          <button type="button" class="btn btn-secondaire" data-fermer="operation">Annuler</button>
+          <button type="submit" class="btn btn-principal">Enregistrer</button>
+        </div>
       </form>
     </div>
   </section>
@@ -385,17 +511,17 @@
           <small class="message-erreur" id="erreur-activite-heures"></small>
         </div>
         <div class="champ">
-          <label for="activite-budget">Budget prévu (FCFA)</label>
+          <label for="activite-budget">Budget prévu (<span class="libelle-devise">FCFA</span>)</label>
           <input id="activite-budget" type="number" min="0" step="1" inputmode="numeric">
           <small class="message-erreur" id="erreur-activite-budget"></small>
         </div>
         <div class="champ">
-          <label for="activite-revenu-prevu">Revenu prévu (FCFA)</label>
+          <label for="activite-revenu-prevu">Revenu prévu (<span class="libelle-devise">FCFA</span>)</label>
           <input id="activite-revenu-prevu" type="number" min="0" step="1" inputmode="numeric">
           <small class="message-erreur" id="erreur-activite-revenu"></small>
         </div>
         <div class="champ">
-          <label for="activite-depenses-prevues">Dépenses prévues (FCFA)</label>
+          <label for="activite-depenses-prevues">Dépenses prévues (<span class="libelle-devise">FCFA</span>)</label>
           <input id="activite-depenses-prevues" type="number" min="0" step="1" inputmode="numeric">
           <small class="message-erreur" id="erreur-activite-depenses"></small>
         </div>
@@ -448,7 +574,7 @@
           <select id="budget-activite"></select>
         </div>
         <div class="champ champ-large">
-          <label for="budget-montant">Montant maximal (FCFA) <span class="obligatoire">*</span></label>
+          <label for="budget-montant">Montant maximal (<span class="libelle-devise">FCFA</span>) <span class="obligatoire">*</span></label>
           <input id="budget-montant" type="number" min="1" step="1" inputmode="numeric">
           <small class="message-erreur" id="erreur-budget-montant"></small>
         </div>

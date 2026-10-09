@@ -188,6 +188,7 @@ main {
 
 .actions-carte {
   display: flex;
+  flex-wrap: wrap;                /* 4 boutons tiennent aussi sur téléphone */
   gap: 8px;
   margin-top: 10px;
 }
@@ -698,6 +699,97 @@ main {
   margin-top: 16px;
 }
 
+/* ---------- 9 bis. Rapports et paramètres ---------- */
+
+/* Le tableau défile horizontalement sur petit écran au lieu
+   d'élargir toute la page. */
+.tableau-defilant {
+  overflow-x: auto;
+  margin: 0 -4px;
+}
+
+.tableau {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.tableau th,
+.tableau td {
+  padding: 8px 6px;
+  border-bottom: 1px solid #eef2f4;
+  text-align: left;
+  vertical-align: top;
+}
+
+/* Titres de colonnes ; les titres de ligne (tbody th) restent normaux. */
+.tableau thead th {
+  color: var(--texte-clair);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* Colonnes de nombres alignées à droite, sans retour à la ligne. */
+.tableau tbody th {
+  font-weight: 600;
+}
+
+.tableau .nombre {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.tableau tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.ligne-saisie {
+  display: flex;
+  gap: 8px;
+}
+
+.ligne-saisie input {
+  flex: 1;
+  min-width: 0;
+}
+
+.ligne-saisie .btn {
+  flex: 0 0 auto;
+}
+
+.liste-categories {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+
+.liste-categories li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid #eef2f4;
+}
+
+.liste-categories .nom-categorie {
+  flex: 1 1 140px;
+}
+
+.liste-categories .nom-categorie small {
+  display: block;
+  color: var(--texte-clair);
+}
+
+.liste-categories .btn {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+}
+
 /* ---------- 10. Divers ---------- */
 
 .cache {
@@ -743,7 +835,9 @@ main {
   #formulaire-budget,
   #formulaire-objectif,
   #formulaire-cotisation,
-  #formulaire-achat {
+  #formulaire-achat,
+  #formulaire-investissement,
+  #formulaire-operation {
     display: grid;
     grid-template-columns: 1fr 1fr;
     column-gap: 16px;

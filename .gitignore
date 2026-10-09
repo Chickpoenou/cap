@@ -1,6 +1,8 @@
 # Sauvegardes contenant des données financières personnelles
 cap-sauvegarde-*.json
 cap-stockage-brut-*.txt
+cap-transactions-*.csv
+cap-rapport-*.csv
 sauvegardes/
 
 # Fichiers générés par les systèmes d'exploitation

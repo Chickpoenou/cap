@@ -1,6 +1,7 @@
 /* ============================================================
    Cap — logique de l'application
-   Étapes 1 à 4 : navigation, transactions, activités, budgets et objectifs,
+   Étapes 1 à 6 : transactions, activités, budgets, objectifs,
+   investissements, rapports, export CSV et paramètres,
    avec rappel de sauvegarde et annulation de la dernière saisie.
    Toutes les données sont enregistrées dans le stockage local
    du navigateur (localStorage), rien n'est envoyé sur Internet.
@@ -33,8 +34,7 @@ const CATEGORIES_DEFAUT = [
   'Divers'
 ];
 
-/* Toutes les données de l'application, chargées au démarrage.
-   La liste investissements attend l'étape 5. */
+/* Toutes les données de l'application, chargées au démarrage. */
 let donnees = null;
 let stockageEnErreur = false;
 let messageErreurStockage = '';
@@ -56,6 +56,14 @@ let idBudgetModification = null;
 let idObjectifModification = null;
 let idObjectifCotisation = null;
 let idObjectifAchat = null;
+let idInvestissementModification = null;
+let idInvestissementOperation = null;
+
+/* Période affichée dans l'écran Rapports ("AAAA-MM-JJ"). */
+let periodeRapport = { debut: '', fin: '' };
+
+/* Délais possibles du rappel de mise à jour, en jours (0 = jamais). */
+const DELAIS_RAPPEL = [0, 1, 3, 7];
 
 /* Dernière action annulable : copie des données juste avant
    la modification, et minuteur qui masque le bandeau. */
@@ -87,22 +95,26 @@ function chargerDonnees() {
     if (!structureValide(lues)) {
       throw new Error('Structure invalide');
     }
-    donnees = lues;
-    donnees.version = 1;
-    donnees.activites = Array.isArray(donnees.activites) ? donnees.activites : [];
-    donnees.objectifs = Array.isArray(donnees.objectifs) ? donnees.objectifs : [];
-    donnees.investissements = Array.isArray(donnees.investissements) ? donnees.investissements : [];
-    donnees.budgets = Array.isArray(donnees.budgets) ? donnees.budgets : [];
-    donnees.reglages = donnees.reglages || {};
-    donnees.reglages.devise = donnees.reglages.devise || 'FCFA';
-    donnees.reglages.categories = Array.isArray(donnees.reglages.categories)
-      ? donnees.reglages.categories
-      : CATEGORIES_DEFAUT.slice();
+    donnees = normaliserDonnees(lues);
   } catch (erreur) {
     donnees = donneesVides();
     stockageEnErreur = true;
     messageErreurStockage = "Les données enregistrées sont illisibles. Elles ont été préservées ; restaure une sauvegarde ou exporte les données endommagées avant de réinitialiser.";
   }
+}
+
+/* Complète une structure valide avec les listes et réglages
+   apparus dans les versions suivantes (anciennes sauvegardes). */
+function normaliserDonnees(d) {
+  d.version = 1;
+  ['activites', 'objectifs', 'investissements', 'budgets'].forEach(function (cle) {
+    if (!Array.isArray(d[cle])) d[cle] = [];
+  });
+  d.reglages = d.reglages || {};
+  d.reglages.devise = d.reglages.devise || 'FCFA';
+  d.reglages.categories = Array.isArray(d.reglages.categories) ? d.reglages.categories : CATEGORIES_DEFAUT.slice();
+  d.reglages.rappelJours = DELAIS_RAPPEL.includes(d.reglages.rappelJours) ? d.reglages.rappelJours : 7;
+  return d;
 }
 
 function donneesVides() {
@@ -113,7 +125,7 @@ function donneesVides() {
     objectifs: [],
     investissements: [],
     budgets: [],
-    reglages: { devise: 'FCFA', categories: CATEGORIES_DEFAUT.slice() }
+    reglages: { devise: 'FCFA', categories: CATEGORIES_DEFAUT.slice(), rappelJours: 7 }
   };
 }
 
@@ -122,7 +134,7 @@ function structureValide(objet) {
     Array.isArray(objet.transactions) && objet.transactions.every(transactionValide) &&
     (objet.activites === undefined || (Array.isArray(objet.activites) && objet.activites.every(activiteValide))) &&
     (objet.objectifs === undefined || (Array.isArray(objet.objectifs) && objet.objectifs.every(objectifValide))) &&
-    objetsValides(objet.investissements) &&
+    (objet.investissements === undefined || (Array.isArray(objet.investissements) && objet.investissements.every(investissementValide))) &&
     (objet.budgets === undefined || (Array.isArray(objet.budgets) && objet.budgets.every(budgetValide))) &&
     (objet.reglages === undefined || reglagesValides(objet.reglages));
 }
@@ -134,7 +146,8 @@ function reglagesValides(reglages) {
     (reglages.devise === undefined || (typeof reglages.devise === 'string' && /^[\p{L}\p{Sc} ]{1,10}$/u.test(reglages.devise))) &&
     (reglages.categories === undefined || (Array.isArray(reglages.categories) && reglages.categories.every(function (categorie) {
       return typeof categorie === 'string' && categorie.trim() !== '' && categorie.length <= 60;
-    })));
+    }))) &&
+    (reglages.rappelJours === undefined || DELAIS_RAPPEL.includes(reglages.rappelJours));
 }
 
 function activiteValide(activite) {
@@ -162,10 +175,28 @@ function budgetValide(budget) {
     (budget.activiteId === undefined || typeof budget.activiteId === 'string');
 }
 
-function objetsValides(liste) {
-  return liste === undefined || (Array.isArray(liste) && liste.every(function (element) {
-    return element !== null && typeof element === 'object' && !Array.isArray(element);
-  }));
+function investissementValide(investissement) {
+  return investissement !== null && typeof investissement === 'object' &&
+    typeof investissement.id === 'string' && typeof investissement.nom === 'string' &&
+    typeof investissement.type === 'string' && typeof investissement.notes === 'string' &&
+    ['actif', 'clos'].includes(investissement.statut) && Number.isFinite(investissement.creeLe) &&
+    Array.isArray(investissement.operations) && investissement.operations.every(operationInvestissementValide) &&
+    Array.isArray(investissement.valeurs) && investissement.valeurs.every(valeurInvestissementValide);
+}
+
+function operationInvestissementValide(operation) {
+  return operation !== null && typeof operation === 'object' && typeof operation.id === 'string' &&
+    ['apport', 'revenu', 'frais'].includes(operation.type) &&
+    Number.isSafeInteger(operation.montant) && operation.montant > 0 &&
+    typeof operation.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(operation.date) &&
+    typeof operation.note === 'string' && Number.isFinite(operation.creeLe);
+}
+
+function valeurInvestissementValide(valeur) {
+  return valeur !== null && typeof valeur === 'object' && typeof valeur.id === 'string' &&
+    Number.isSafeInteger(valeur.montant) && valeur.montant >= 0 &&
+    typeof valeur.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(valeur.date) &&
+    typeof valeur.note === 'string' && Number.isFinite(valeur.creeLe);
 }
 
 function transactionValide(transaction) {
@@ -283,7 +314,8 @@ function joursEntre(debutISO, finISO) {
 }
 
 function contientDesDonnees() {
-  return donnees.transactions.length + donnees.activites.length + donnees.objectifs.length + donnees.budgets.length > 0;
+  return donnees.transactions.length + donnees.activites.length + donnees.objectifs.length +
+    donnees.budgets.length + donnees.investissements.length > 0;
 }
 
 /* Rappel sur l'accueil + date de la dernière sauvegarde dans les
@@ -358,15 +390,7 @@ async function restaurerSauvegarde(fichier) {
       afficherErreurStockage();
       return;
     }
-    donnees = candidate;
-    donnees.version = 1;
-    donnees.activites = Array.isArray(donnees.activites) ? donnees.activites : [];
-    donnees.objectifs = Array.isArray(donnees.objectifs) ? donnees.objectifs : [];
-    donnees.investissements = Array.isArray(donnees.investissements) ? donnees.investissements : [];
-    donnees.budgets = Array.isArray(donnees.budgets) ? donnees.budgets : [];
-    donnees.reglages = donnees.reglages || {};
-    donnees.reglages.devise = donnees.reglages.devise || 'FCFA';
-    donnees.reglages.categories = Array.isArray(donnees.reglages.categories) ? donnees.reglages.categories : CATEGORIES_DEFAUT.slice();
+    donnees = normaliserDonnees(candidate);
     stockageEnErreur = false;
     messageErreurStockage = '';
     document.getElementById('alerte-stockage').hidden = true;
@@ -664,6 +688,26 @@ function moisAlertesTableau() {
   return '';
 }
 
+/* Rappel « pense à mettre à jour » si rien n'a été saisi depuis le
+   délai choisi dans les paramètres (cahier des charges §4.4). */
+function messageRappelMiseAJour() {
+  const delai = donnees.reglages.rappelJours;
+  if (!delai) return '';
+  let derniere = 0;
+  const noter = function (element) { if (element.creeLe > derniere) derniere = element.creeLe; };
+  donnees.transactions.forEach(noter);
+  donnees.objectifs.forEach(function (objectif) { objectif.cotisations.forEach(noter); });
+  donnees.investissements.forEach(function (investissement) {
+    investissement.operations.forEach(noter);
+    investissement.valeurs.forEach(noter);
+  });
+  if (!derniere) return '';
+  const ecoule = joursEntre(versISO(new Date(derniere)), aujourdhuiISO());
+  if (ecoule < delai) return '';
+  return 'Aucune saisie depuis ' + ecoule + (ecoule > 1 ? ' jours' : ' jour') +
+    ' : pense à mettre à jour tes dépenses et revenus.';
+}
+
 function rendreAlertesBudget() {
   const liste = document.getElementById('alertes-budget');
   const vide = document.getElementById('alertes-vides');
@@ -683,7 +727,13 @@ function rendreAlertesBudget() {
     return activite.statut !== 'terminee' && activite.budget !== null && activite.budget !== undefined &&
       totauxActivite(activite.id).depenses > activite.budget;
   });
-  const nombreAlertes = alertesBudget.length + alertesObjectif.length + alertesActivite.length;
+  const rappel = messageRappelMiseAJour();
+  if (rappel) {
+    const li = document.createElement('li');
+    li.textContent = rappel;
+    liste.appendChild(li);
+  }
+  const nombreAlertes = alertesBudget.length + alertesObjectif.length + alertesActivite.length + (rappel ? 1 : 0);
   vide.hidden = nombreAlertes > 0;
   vide.textContent = mois
     ? 'Aucune alerte de budget, d’activité ou d’objectif pour cette période.'
@@ -1207,6 +1257,730 @@ function enregistrerAchatObjectif() {
   rendreTout();
 }
 
+/* ---------- 8 bis. Investissements ---------- */
+
+/* Les montants sont saisis à la main : l'application ne prévoit
+   aucun rendement, elle compare seulement la valeur saisie aux
+   apports (cahier des charges §4.6). */
+
+const LIBELLES_OPERATION = {
+  apport: 'Apport',
+  revenu: 'Revenu perçu',
+  frais: 'Frais',
+  valeur: 'Valeur estimée'
+};
+
+/* Somme des opérations d'un type, éventuellement jusqu'à une date
+   incluse (dateMax vide = toutes les dates). */
+function sommeOperations(investissement, type, dateMax) {
+  return investissement.operations.reduce(function (total, operation) {
+    return operation.type === type && (!dateMax || operation.date <= dateMax) ? total + operation.montant : total;
+  }, 0);
+}
+
+/* Dernière valeur estimée saisie (la plus récente par date),
+   éventuellement jusqu'à une date incluse. */
+function derniereValeur(investissement, dateMax) {
+  let derniere = null;
+  for (const valeur of investissement.valeurs) {
+    if (dateMax && valeur.date > dateMax) continue;
+    if (!derniere || valeur.date > derniere.date || (valeur.date === derniere.date && valeur.creeLe > derniere.creeLe)) {
+      derniere = valeur;
+    }
+  }
+  return derniere;
+}
+
+function bilanInvestissement(investissement, dateMax) {
+  const apports = sommeOperations(investissement, 'apport', dateMax);
+  const revenus = sommeOperations(investissement, 'revenu', dateMax);
+  const frais = sommeOperations(investissement, 'frais', dateMax);
+  const valeur = derniereValeur(investissement, dateMax);
+  return {
+    apports: apports,
+    revenus: revenus,
+    frais: frais,
+    valeur: valeur ? valeur.montant : null,
+    dateValeur: valeur ? valeur.date : '',
+    /* écart = valeur saisie − argent placé */
+    ecart: valeur ? valeur.montant - apports : null,
+    /* résultat = écart + revenus perçus − frais */
+    resultat: valeur ? valeur.montant - apports + revenus - frais : null
+  };
+}
+
+/* Montant signé : "+5 000 FCFA" ou "-5 000 FCFA". */
+function formaterEcart(montant) {
+  return (montant > 0 ? '+' : '') + formaterMontant(montant);
+}
+
+/* Totaux des investissements actifs, pour l'accueil et l'écran. */
+function totauxInvestissements() {
+  const resultat = { nombre: 0, apports: 0, valeur: 0, ecart: 0, valorises: 0 };
+  donnees.investissements.forEach(function (investissement) {
+    if (investissement.statut !== 'actif') return;
+    const bilan = bilanInvestissement(investissement, '');
+    resultat.nombre += 1;
+    resultat.apports += bilan.apports;
+    if (bilan.valeur !== null) {
+      resultat.valorises += 1;
+      resultat.valeur += bilan.valeur;
+      resultat.ecart += bilan.ecart;
+    }
+  });
+  return resultat;
+}
+
+function texteTotauxInvestissements() {
+  const t = totauxInvestissements();
+  if (!t.nombre) return '';
+  let texte = t.nombre + (t.nombre > 1 ? ' investissements actifs' : ' investissement actif') +
+    ' · Apports cumulés : ' + formaterMontant(t.apports);
+  if (t.valorises) {
+    texte += ' · Valeur estimée : ' + formaterMontant(t.valeur) + ' · Écart estimé : ' + formaterEcart(t.ecart);
+  }
+  if (t.valorises < t.nombre) {
+    const sans = t.nombre - t.valorises;
+    texte += ' · ' + sans + (sans > 1 ? ' sans valeur saisie, non comptés dans la valeur.' : ' sans valeur saisie, non compté dans la valeur.');
+  }
+  return texte;
+}
+
+function construireCarteInvestissement(investissement) {
+  const bilan = bilanInvestissement(investissement, '');
+  const carte = document.createElement('article');
+  carte.className = 'carte carte-element';
+
+  const entete = document.createElement('div');
+  entete.className = 'ligne-flex';
+  const nom = document.createElement('h3');
+  nom.textContent = investissement.nom;
+  const badge = document.createElement('span');
+  badge.className = 'badge-statut ' + (investissement.statut === 'actif' ? 'statut-encours' : 'statut-terminee');
+  badge.textContent = investissement.statut === 'actif' ? 'Actif' : 'Clos';
+  entete.append(nom, badge);
+  carte.appendChild(entete);
+
+  const description = [investissement.type, investissement.notes].filter(Boolean).join(' · ');
+  if (description) {
+    const ligne = document.createElement('p');
+    ligne.className = 'note';
+    ligne.textContent = description;
+    carte.appendChild(ligne);
+  }
+
+  const chiffres = document.createElement('p');
+  chiffres.className = 'resume-financier';
+  chiffres.textContent = 'Apports : ' + formaterMontant(bilan.apports) + ' · ' + (bilan.valeur === null
+    ? 'Valeur estimée : non saisie'
+    : 'Valeur estimée : ' + formaterMontant(bilan.valeur) + ' au ' + formaterDateCourte(bilan.dateValeur) +
+      ' · Écart estimé : ' + formaterEcart(bilan.ecart));
+  carte.appendChild(chiffres);
+
+  const complement = document.createElement('p');
+  complement.className = 'note';
+  if (bilan.revenus || bilan.frais) {
+    complement.textContent = 'Revenus perçus : ' + formaterMontant(bilan.revenus) + ' · Frais : ' + formaterMontant(bilan.frais) +
+      (bilan.resultat !== null ? ' · Résultat estimé (écart + revenus − frais) : ' + formaterEcart(bilan.resultat) : '');
+  } else if (bilan.valeur === null) {
+    complement.textContent = 'Ajoute une « valeur estimée » pour suivre l’écart avec tes apports.';
+  }
+  if (complement.textContent) carte.appendChild(complement);
+
+  /* Historique : opérations et valeurs, de la plus récente à la plus ancienne. */
+  const entrees = investissement.operations.map(function (operation) { return { genre: 'operation', element: operation }; })
+    .concat(investissement.valeurs.map(function (valeur) { return { genre: 'valeur', element: valeur }; }))
+    .sort(function (a, b) { return b.element.date.localeCompare(a.element.date) || b.element.creeLe - a.element.creeLe; });
+  if (entrees.length) {
+    const historique = document.createElement('details');
+    historique.className = 'historique-cotisations';
+    const titre = document.createElement('summary');
+    titre.textContent = 'Historique (' + entrees.length + ')';
+    historique.appendChild(titre);
+    const liste = document.createElement('ul');
+    liste.className = 'liste-simple';
+    entrees.forEach(function (entree) {
+      const element = entree.element;
+      const libelle = entree.genre === 'valeur' ? LIBELLES_OPERATION.valeur : LIBELLES_OPERATION[element.type];
+      const ligne = document.createElement('li');
+      ligne.className = 'ligne-cotisation';
+      const texte = document.createElement('span');
+      texte.textContent = formaterDateCourte(element.date) + ' · ' + libelle + ' · ' + formaterMontant(element.montant) +
+        (element.note ? ' · ' + element.note : '');
+      const retirer = document.createElement('button');
+      retirer.type = 'button';
+      retirer.className = 'btn btn-secondaire bouton-retirer-cotisation';
+      retirer.textContent = 'Retirer';
+      retirer.setAttribute('aria-label', 'Retirer ' + libelle.toLowerCase() + ' de ' + formaterMontant(element.montant) + ' du ' + formaterDateCourte(element.date));
+      retirer.addEventListener('click', function () { retirerEntreeInvestissement(investissement.id, entree.genre, element.id); });
+      ligne.append(texte, retirer);
+      liste.appendChild(ligne);
+    });
+    historique.appendChild(liste);
+    carte.appendChild(historique);
+  }
+
+  const actions = document.createElement('div');
+  actions.className = 'actions-carte';
+  if (investissement.statut === 'actif') {
+    const operation = document.createElement('button');
+    operation.type = 'button';
+    operation.className = 'btn btn-principal';
+    operation.textContent = 'Ajouter une opération';
+    operation.addEventListener('click', function () { ouvrirFormulaireOperation(investissement.id); });
+    actions.appendChild(operation);
+  }
+  const modifier = document.createElement('button');
+  modifier.type = 'button';
+  modifier.className = 'btn btn-secondaire';
+  modifier.textContent = 'Modifier';
+  modifier.addEventListener('click', function () { ouvrirFormulaireInvestissement(investissement.id); });
+  const supprimer = document.createElement('button');
+  supprimer.type = 'button';
+  supprimer.className = 'btn btn-secondaire';
+  supprimer.textContent = 'Supprimer';
+  supprimer.addEventListener('click', function () { supprimerInvestissement(investissement.id); });
+  actions.append(modifier, supprimer);
+  carte.appendChild(actions);
+  return carte;
+}
+
+function rendreInvestissements() {
+  const liste = document.getElementById('liste-investissements');
+  liste.replaceChildren();
+  const investissements = donnees.investissements.slice().sort(function (a, b) {
+    if (a.statut !== b.statut) return a.statut === 'actif' ? -1 : 1;
+    return b.creeLe - a.creeLe;
+  });
+  document.getElementById('investissements-vides').hidden = investissements.length > 0;
+  investissements.forEach(function (investissement) { liste.appendChild(construireCarteInvestissement(investissement)); });
+  const totaux = texteTotauxInvestissements();
+  const elementTotaux = document.getElementById('totaux-investissements');
+  elementTotaux.textContent = totaux;
+  elementTotaux.hidden = totaux === '';
+}
+
+function rendreResumeInvestissements() {
+  const conteneur = document.getElementById('resume-investissements');
+  const texte = document.createElement('p');
+  texte.className = 'note';
+  texte.textContent = texteTotauxInvestissements() || 'Aucun investissement actif.';
+  conteneur.replaceChildren(texte);
+}
+
+function ouvrirFormulaireInvestissement(id) {
+  idInvestissementModification = id || null;
+  const investissement = id ? donnees.investissements.find(function (i) { return i.id === id; }) : null;
+  document.getElementById('investissement-nom').value = investissement ? investissement.nom : '';
+  document.getElementById('investissement-type').value = investissement ? investissement.type : '';
+  document.getElementById('investissement-statut').value = investissement ? investissement.statut : 'actif';
+  document.getElementById('investissement-notes').value = investissement ? investissement.notes : '';
+  document.getElementById('investissement-apport').value = '';
+  document.getElementById('investissement-date').value = aujourdhuiISO();
+  document.getElementById('investissement-valeur').value = '';
+  /* Premier apport et valeur : seulement à la création. Ensuite, on
+     passe par « Ajouter une opération » pour garder un historique. */
+  document.querySelectorAll('.champ-creation-investissement').forEach(function (champ) {
+    champ.classList.toggle('cache', Boolean(investissement));
+  });
+  document.getElementById('titre-investissement').textContent = investissement ? 'Modifier un investissement' : 'Nouvel investissement';
+  effacerErreursFormulaire('formulaire-investissement');
+  document.getElementById('voile-investissement').classList.remove('cache');
+  document.getElementById('investissement-nom').focus();
+}
+
+/* Efface messages et cadres d'erreur d'un formulaire donné. */
+function effacerErreursFormulaire(idFormulaire) {
+  document.querySelectorAll('#' + idFormulaire + ' .message-erreur').forEach(function (el) { el.textContent = ''; });
+  document.querySelectorAll('#' + idFormulaire + ' .invalide').forEach(function (el) { el.classList.remove('invalide'); });
+}
+
+function marquerErreur(idChamp, idErreur, message) {
+  document.getElementById(idChamp).closest('.champ').classList.add('invalide');
+  document.getElementById(idErreur).textContent = message;
+}
+
+/* Lit un montant entier facultatif : null si vide, NaN si invalide. */
+function lireMontantFacultatif(idChamp, minimum) {
+  const brut = document.getElementById(idChamp).value.trim();
+  if (brut === '') return null;
+  const nombre = Number(brut);
+  return Number.isSafeInteger(nombre) && nombre >= minimum ? nombre : NaN;
+}
+
+function enregistrerInvestissement() {
+  effacerErreursFormulaire('formulaire-investissement');
+  const nom = document.getElementById('investissement-nom').value.trim();
+  let valide = true;
+  if (!nom) { marquerErreur('investissement-nom', 'erreur-investissement-nom', 'Indique un nom.'); valide = false; }
+  let apport = null;
+  let dateApport = '';
+  let valeur = null;
+  if (!idInvestissementModification) {
+    apport = lireMontantFacultatif('investissement-apport', 1);
+    dateApport = document.getElementById('investissement-date').value;
+    valeur = lireMontantFacultatif('investissement-valeur', 0);
+    if (Number.isNaN(apport)) { marquerErreur('investissement-apport', 'erreur-investissement-apport', 'Entre un montant entier supérieur à zéro ou laisse le champ vide.'); valide = false; }
+    if (apport !== null && (!/^\d{4}-\d{2}-\d{2}$/.test(dateApport) || dateApport > aujourdhuiISO())) {
+      marquerErreur('investissement-date', 'erreur-investissement-date', 'Choisis une date qui n’est pas dans le futur.'); valide = false;
+    }
+    if (Number.isNaN(valeur)) { marquerErreur('investissement-valeur', 'erreur-investissement-valeur', 'Entre un montant entier positif ou laisse le champ vide.'); valide = false; }
+  }
+  if (!valide) return;
+
+  const valeurs = {
+    nom: nom,
+    type: document.getElementById('investissement-type').value.trim(),
+    statut: document.getElementById('investissement-statut').value,
+    notes: document.getElementById('investissement-notes').value.trim()
+  };
+  const avant = JSON.stringify(donnees);
+  if (idInvestissementModification) {
+    Object.assign(donnees.investissements.find(function (i) { return i.id === idInvestissementModification; }), valeurs);
+  } else {
+    const maintenant = Date.now();
+    donnees.investissements.push(Object.assign({
+      id: nouvelIdentifiant(),
+      creeLe: maintenant,
+      operations: apport !== null ? [{ id: nouvelIdentifiant(), type: 'apport', montant: apport, date: dateApport, note: 'Premier apport', creeLe: maintenant }] : [],
+      valeurs: valeur !== null ? [{ id: nouvelIdentifiant(), montant: valeur, date: aujourdhuiISO(), note: '', creeLe: maintenant }] : []
+    }, valeurs));
+  }
+  if (!enregistrerDonnees()) { donnees = JSON.parse(avant); rendreTout(); return; }
+  document.getElementById('voile-investissement').classList.add('cache');
+  proposerAnnulation(avant, 'Investissement enregistré.');
+  rendreTout();
+}
+
+function supprimerInvestissement(id) {
+  const investissement = donnees.investissements.find(function (i) { return i.id === id; });
+  if (!investissement) return;
+  if (investissement.operations.length || investissement.valeurs.length) {
+    alert('Cet investissement possède un historique et ne peut pas être supprimé. Marque-le « Clos » pour le garder dans la liste, ou retire d’abord ses opérations.');
+    return;
+  }
+  if (!confirm('Supprimer l’investissement « ' + investissement.nom + ' » ?')) return;
+  const avant = JSON.stringify(donnees);
+  donnees.investissements = donnees.investissements.filter(function (i) { return i.id !== id; });
+  if (!enregistrerDonnees()) donnees = JSON.parse(avant);
+  else proposerAnnulation(avant, 'Investissement supprimé.');
+  rendreTout();
+}
+
+function ouvrirFormulaireOperation(id) {
+  const investissement = donnees.investissements.find(function (i) { return i.id === id; });
+  if (!investissement || investissement.statut !== 'actif') return;
+  idInvestissementOperation = id;
+  document.getElementById('resume-operation').textContent = 'Investissement : ' + investissement.nom + '.';
+  document.getElementById('operation-type').value = 'apport';
+  document.getElementById('operation-montant').value = '';
+  document.getElementById('operation-date').value = aujourdhuiISO();
+  document.getElementById('operation-note').value = '';
+  effacerErreursFormulaire('formulaire-operation');
+  actualiserTypeOperation();
+  document.getElementById('voile-operation').classList.remove('cache');
+  document.getElementById('operation-montant').focus();
+}
+
+/* Le libellé et l'aide changent selon le type d'opération. */
+function actualiserTypeOperation() {
+  const type = document.getElementById('operation-type').value;
+  const aides = {
+    apport: 'Argent placé dans cet investissement. Il n’est pas compté comme une dépense.',
+    revenu: 'Argent rapporté par l’investissement. Pour qu’il compte aussi dans ton solde, enregistre-le comme revenu dans Transactions.',
+    frais: 'Frais liés à l’investissement (commission, entretien…).',
+    valeur: 'Valeur totale de l’investissement à cette date, telle que tu l’estimes : ce n’est pas une variation.'
+  };
+  document.getElementById('libelle-operation-montant').firstChild.textContent = type === 'valeur' ? 'Valeur totale estimée (' : 'Montant (';
+  document.getElementById('aide-operation').textContent = aides[type];
+}
+
+function enregistrerOperationInvestissement() {
+  effacerErreursFormulaire('formulaire-operation');
+  const investissement = donnees.investissements.find(function (i) { return i.id === idInvestissementOperation; });
+  if (!investissement || investissement.statut !== 'actif') return;
+  const type = document.getElementById('operation-type').value;
+  const montant = lireMontantFacultatif('operation-montant', type === 'valeur' ? 0 : 1);
+  const date = document.getElementById('operation-date').value;
+  let valide = true;
+  if (montant === null || Number.isNaN(montant)) {
+    marquerErreur('operation-montant', 'erreur-operation-montant', type === 'valeur'
+      ? 'Entre une valeur entière positive ou nulle.'
+      : 'Entre un montant entier supérieur à zéro.');
+    valide = false;
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > aujourdhuiISO()) {
+    marquerErreur('operation-date', 'erreur-operation-date', 'Choisis une date qui n’est pas dans le futur.');
+    valide = false;
+  }
+  if (!valide) return;
+  const avant = JSON.stringify(donnees);
+  const entree = { id: nouvelIdentifiant(), montant: montant, date: date, note: document.getElementById('operation-note').value.trim(), creeLe: Date.now() };
+  if (type === 'valeur') {
+    investissement.valeurs.push(entree);
+  } else {
+    entree.type = type;
+    investissement.operations.push(entree);
+  }
+  if (!enregistrerDonnees()) { donnees = JSON.parse(avant); rendreTout(); return; }
+  document.getElementById('voile-operation').classList.add('cache');
+  proposerAnnulation(avant, LIBELLES_OPERATION[type] + ' de ' + formaterMontant(montant) + ' enregistré' + (type === 'valeur' ? 'e.' : '.'));
+  rendreTout();
+}
+
+function retirerEntreeInvestissement(investissementId, genre, entreeId) {
+  const investissement = donnees.investissements.find(function (i) { return i.id === investissementId; });
+  if (!investissement) return;
+  const cle = genre === 'valeur' ? 'valeurs' : 'operations';
+  const entree = investissement[cle].find(function (e) { return e.id === entreeId; });
+  if (!entree || !confirm('Retirer cette ligne de ' + formaterMontant(entree.montant) + ' de l’historique ?')) return;
+  const avant = JSON.stringify(donnees);
+  investissement[cle] = investissement[cle].filter(function (e) { return e.id !== entreeId; });
+  if (!enregistrerDonnees()) { donnees = JSON.parse(avant); rendreTout(); return; }
+  proposerAnnulation(avant, 'Ligne retirée de l’historique.');
+  rendreTout();
+}
+
+/* ---------- 8 ter. Rapports et export CSV ---------- */
+
+/* Veille d'une date "AAAA-MM-JJ". */
+function veille(dateISO) {
+  const d = new Date(dateISO + 'T12:00:00');
+  d.setDate(d.getDate() - 1);
+  return versISO(d);
+}
+
+/* Liste des mois "AAAA-MM" couverts par une période. */
+function moisEntre(debut, fin) {
+  const liste = [];
+  let annee = Number(debut.slice(0, 4));
+  let mois = Number(debut.slice(5, 7));
+  const dernier = fin.slice(0, 7);
+  for (;;) {
+    const courant = annee + '-' + String(mois).padStart(2, '0');
+    if (courant > dernier) break;
+    liste.push(courant);
+    mois += 1;
+    if (mois > 12) { mois = 1; annee += 1; }
+  }
+  return liste;
+}
+
+/* Toutes les dates saisies (pour le raccourci « Tout »). */
+function datesSaisies() {
+  const dates = donnees.transactions.map(function (t) { return t.date; });
+  donnees.objectifs.forEach(function (objectif) {
+    objectif.cotisations.forEach(function (c) { dates.push(c.date); });
+  });
+  donnees.investissements.forEach(function (investissement) {
+    investissement.operations.forEach(function (o) { dates.push(o.date); });
+    investissement.valeurs.forEach(function (v) { dates.push(v.date); });
+  });
+  return dates.sort();
+}
+
+function choisirRaccourciRapport(raccourci) {
+  const maintenant = new Date();
+  if (raccourci === 'mois') {
+    periodeRapport = { debut: premierJourMois(maintenant), fin: dernierJourMois(maintenant) };
+  } else if (raccourci === 'moisPrecedent') {
+    const precedent = new Date(maintenant.getFullYear(), maintenant.getMonth() - 1, 1);
+    periodeRapport = { debut: premierJourMois(precedent), fin: dernierJourMois(precedent) };
+  } else if (raccourci === 'annee') {
+    periodeRapport = { debut: maintenant.getFullYear() + '-01-01', fin: maintenant.getFullYear() + '-12-31' };
+  } else {
+    const dates = datesSaisies();
+    const aujourdHui = aujourdhuiISO();
+    periodeRapport = {
+      debut: dates.length ? dates[0] : premierJourMois(maintenant),
+      fin: dates.length && dates[dates.length - 1] > aujourdHui ? dates[dates.length - 1] : aujourdHui
+    };
+  }
+  document.querySelectorAll('[data-raccourci]').forEach(function (chip) {
+    chip.classList.toggle('actif', chip.dataset.raccourci === raccourci);
+  });
+  document.getElementById('rapport-debut').value = periodeRapport.debut;
+  document.getElementById('rapport-fin').value = periodeRapport.fin;
+  rendreRapport();
+}
+
+function pourcentage(partie, total) {
+  return total > 0 ? Math.round(partie / total * 100) : null;
+}
+
+/* Calcule toutes les sections du rapport. Chaque section décrit
+   ses colonnes (titre + format) et ses lignes de valeurs brutes :
+   le même résultat sert à l'affichage et à l'export CSV. */
+function calculerRapport(debut, fin) {
+  const dansPeriode = function (date) { return date >= debut && date <= fin; };
+  const transactions = donnees.transactions.filter(function (t) { return dansPeriode(t.date); });
+  const sections = [];
+  const montant = function (titre) { return { titre: titre, format: 'montant' }; };
+
+  /* 1. Résumé */
+  const total = totaux(transactions);
+  sections.push({
+    titre: 'Résumé de la période',
+    colonnes: [{ titre: 'Indicateur' }, montant('Montant')],
+    lignes: [
+      ['Revenus reçus', total.revenus],
+      ['Dépenses payées', total.depenses],
+      ['Résultat net (revenus − dépenses)', total.solde],
+      ['Transferts internes (hors résultat)', total.transferts]
+    ]
+  });
+
+  /* 2. Par mois */
+  sections.push({
+    titre: 'Par mois',
+    colonnes: [{ titre: 'Mois' }, montant('Revenus'), montant('Dépenses'), montant('Résultat')],
+    lignes: moisEntre(debut, fin).map(function (mois) {
+      const t = totaux(transactions.filter(function (tr) { return tr.date.slice(0, 7) === mois; }));
+      return [formaterMoisAnnee(mois + '-01'), t.revenus, t.depenses, t.solde];
+    })
+  });
+
+  /* 3. Par catégorie */
+  const parCategorie = new Map();
+  transactions.forEach(function (t) {
+    if (t.type === 'transfert') return;
+    const cle = t.categorie || 'Sans catégorie';
+    const ligne = parCategorie.get(cle) || { revenus: 0, depenses: 0 };
+    if (t.type === 'revenu') ligne.revenus += t.montant; else ligne.depenses += t.montant;
+    parCategorie.set(cle, ligne);
+  });
+  sections.push({
+    titre: 'Par catégorie',
+    colonnes: [{ titre: 'Catégorie' }, montant('Revenus'), montant('Dépenses'), { titre: 'Part des dépenses', format: 'pourcent' }],
+    lignes: Array.from(parCategorie.entries())
+      .sort(function (a, b) { return b[1].depenses - a[1].depenses || b[1].revenus - a[1].revenus; })
+      .map(function (entree) {
+        return [entree[0], entree[1].revenus, entree[1].depenses, pourcentage(entree[1].depenses, total.depenses)];
+      }),
+    vide: 'Aucun revenu ni dépense sur cette période.'
+  });
+
+  /* 4. Par activité */
+  const lignesActivites = donnees.activites.filter(function (activite) {
+    return activite.statut === 'encours' || transactions.some(function (t) { return t.activiteId === activite.id; });
+  }).map(function (activite) {
+    const t = totaux(transactions.filter(function (tr) { return tr.activiteId === activite.id; }));
+    return [activite.nom, t.revenus, t.depenses, t.solde, activite.heures > 0 ? activite.heures : null];
+  });
+  const sansActivite = transactions.filter(function (t) { return !t.activiteId || !nomActivite(t.activiteId); });
+  if (sansActivite.length) {
+    const t = totaux(sansActivite);
+    lignesActivites.push(['Sans activité', t.revenus, t.depenses, t.solde, null]);
+  }
+  sections.push({
+    titre: 'Par activité',
+    note: 'Les heures sont le total saisi sur la fiche de l’activité, toutes dates confondues.',
+    colonnes: [{ titre: 'Activité' }, montant('Revenus'), montant('Dépenses'), montant('Résultat'), { titre: 'Heures saisies', format: 'nombre' }],
+    lignes: lignesActivites,
+    vide: 'Aucune activité en cours ni transaction liée à une activité.'
+  });
+
+  /* 5. Prévisions et réel (toutes dates) */
+  sections.push({
+    titre: 'Prévisions et réel des activités',
+    note: 'Comparaison sur toute la durée de chaque activité, indépendamment de la période choisie.',
+    colonnes: [{ titre: 'Activité' }, montant('Revenu prévu'), montant('Revenus reçus'), montant('Dépenses prévues'),
+      montant('Dépenses payées'), montant('Budget'), montant('Reste du budget')],
+    lignes: donnees.activites.filter(function (activite) {
+      return [activite.revenuPrevu, activite.depensesPrevues, activite.budget].some(function (v) { return v !== null && v !== undefined; });
+    }).map(function (activite) {
+      const t = totauxActivite(activite.id);
+      const budget = activite.budget !== null && activite.budget !== undefined ? activite.budget : null;
+      return [activite.nom, activite.revenuPrevu != null ? activite.revenuPrevu : null, t.revenus,
+        activite.depensesPrevues != null ? activite.depensesPrevues : null, t.depenses,
+        budget, budget !== null ? budget - t.depenses : null];
+    }),
+    vide: 'Aucune activité n’a de prévision ou de budget.'
+  });
+
+  /* 6. Budgets des mois de la période */
+  const moisPeriode = moisEntre(debut, fin);
+  sections.push({
+    titre: 'Budgets',
+    note: 'Budgets des mois couverts, même partiellement, par la période.',
+    colonnes: [{ titre: 'Mois' }, { titre: 'Budget' }, montant('Prévu'), montant('Dépensé'), { titre: 'Utilisé', format: 'pourcent' }, { titre: 'État' }],
+    lignes: donnees.budgets.filter(function (budget) { return moisPeriode.includes(budget.mois); })
+      .sort(function (a, b) { return a.mois.localeCompare(b.mois); })
+      .map(function (budget) {
+        const utilise = depensesBudget(budget);
+        const taux = utilise / budget.montant * 100;
+        return [formaterMoisAnnee(budget.mois + '-01'), nomPorteeBudget(budget), budget.montant, utilise, Math.round(taux),
+          taux >= 100 ? 'Dépassé' : (taux >= budget.seuil ? 'Seuil atteint' : 'Dans la limite')];
+      }),
+    vide: 'Aucun budget sur ces mois.'
+  });
+
+  /* 7. Objectifs d'épargne */
+  sections.push({
+    titre: 'Objectifs d’épargne',
+    colonnes: [{ titre: 'Objectif' }, montant('Cotisé sur la période'), montant('Total mis de côté'), montant('Cible'),
+      { titre: 'Progression', format: 'pourcent' }, { titre: 'Statut' }],
+    lignes: donnees.objectifs.filter(function (objectif) { return versISO(new Date(objectif.creeLe)) <= fin; })
+      .map(function (objectif) {
+        const cotisePeriode = objectif.cotisations.reduce(function (somme, c) { return dansPeriode(c.date) ? somme + c.montant : somme; }, 0);
+        const cotise = totalCotise(objectif);
+        return [objectif.nom, cotisePeriode, cotise, objectif.cible, Math.min(100, pourcentage(cotise, objectif.cible)),
+          objectif.statut === 'termine' ? 'Terminé' : (montantRestantObjectif(objectif) === 0 ? 'Montant atteint' : 'En cours')];
+      }),
+    vide: 'Aucun objectif sur cette période.'
+  });
+
+  /* 8. Investissements : variation estimée sur la période */
+  const veilleDebut = veille(debut);
+  sections.push({
+    titre: 'Investissements',
+    note: 'Variation estimée = valeur à la fin − valeur au début − apports de la période. Estimation fondée sur les valeurs saisies.',
+    colonnes: [{ titre: 'Investissement' }, montant('Apports sur la période'), montant('Apports cumulés'), montant('Valeur estimée en fin de période'),
+      montant('Variation estimée')],
+    lignes: donnees.investissements.filter(function (investissement) { return versISO(new Date(investissement.creeLe)) <= fin; })
+      .map(function (investissement) {
+        const apportsPeriode = investissement.operations.reduce(function (somme, o) {
+          return o.type === 'apport' && dansPeriode(o.date) ? somme + o.montant : somme;
+        }, 0);
+        const valeurFin = derniereValeur(investissement, fin);
+        const valeurDebut = derniereValeur(investissement, veilleDebut);
+        let variation = null;
+        if (valeurFin) {
+          if (valeurDebut) variation = valeurFin.montant - valeurDebut.montant - apportsPeriode;
+          /* Investissement démarré pendant la période : il valait 0 avant. */
+          else if (sommeOperations(investissement, 'apport', veilleDebut) === 0) variation = valeurFin.montant - apportsPeriode;
+        }
+        return [investissement.nom, apportsPeriode, sommeOperations(investissement, 'apport', fin), valeurFin ? valeurFin.montant : null, variation];
+      }),
+    vide: 'Aucun investissement sur cette période.'
+  });
+
+  return sections;
+}
+
+function formaterCellule(valeur, format) {
+  if (valeur === null || valeur === undefined || valeur === '') return '—';
+  if (format === 'montant') return formaterMontant(valeur);
+  if (format === 'pourcent') return valeur + ' %';
+  if (format === 'nombre') return valeur.toLocaleString('fr-FR');
+  return String(valeur);
+}
+
+function construireTableau(section) {
+  const conteneur = document.createElement('div');
+  conteneur.className = 'tableau-defilant';
+  const tableau = document.createElement('table');
+  tableau.className = 'tableau';
+  const entete = document.createElement('thead');
+  const ligneEntete = document.createElement('tr');
+  section.colonnes.forEach(function (colonne) {
+    const th = document.createElement('th');
+    th.scope = 'col';
+    th.textContent = colonne.titre;
+    if (colonne.format) th.className = 'nombre';
+    ligneEntete.appendChild(th);
+  });
+  entete.appendChild(ligneEntete);
+  const corps = document.createElement('tbody');
+  section.lignes.forEach(function (ligne) {
+    const tr = document.createElement('tr');
+    ligne.forEach(function (valeur, index) {
+      const format = section.colonnes[index].format;
+      const td = document.createElement(index === 0 ? 'th' : 'td');
+      if (index === 0) td.scope = 'row';
+      td.textContent = formaterCellule(valeur, format);
+      if (format) td.className = 'nombre';
+      tr.appendChild(td);
+    });
+    corps.appendChild(tr);
+  });
+  tableau.append(entete, corps);
+  conteneur.appendChild(tableau);
+  return conteneur;
+}
+
+function periodeRapportValide() {
+  return /^\d{4}-\d{2}-\d{2}$/.test(periodeRapport.debut) && /^\d{4}-\d{2}-\d{2}$/.test(periodeRapport.fin) &&
+    periodeRapport.debut <= periodeRapport.fin;
+}
+
+function rendreRapport() {
+  const conteneur = document.getElementById('contenu-rapport');
+  conteneur.replaceChildren();
+  const valide = periodeRapportValide();
+  document.getElementById('rapport-erreur').textContent = valide ? '' : 'Choisis deux dates, la première avant ou égale à la seconde.';
+  document.getElementById('btn-csv-transactions').disabled = !valide;
+  document.getElementById('btn-csv-rapport').disabled = !valide;
+  if (!valide) return;
+  calculerRapport(periodeRapport.debut, periodeRapport.fin).forEach(function (section) {
+    const carte = document.createElement('section');
+    carte.className = 'carte';
+    const titre = document.createElement('h2');
+    titre.textContent = section.titre;
+    carte.appendChild(titre);
+    if (section.note) {
+      const note = document.createElement('p');
+      note.className = 'note';
+      note.textContent = section.note;
+      carte.appendChild(note);
+    }
+    if (section.lignes.length) {
+      carte.appendChild(construireTableau(section));
+    } else {
+      const vide = document.createElement('p');
+      vide.className = 'vide';
+      vide.textContent = section.vide || 'Aucune donnée sur cette période.';
+      carte.appendChild(vide);
+    }
+    conteneur.appendChild(carte);
+  });
+}
+
+/* Une cellule CSV : séparateur « ; » (Excel en français), guillemets
+   doublés, et apostrophe devant un texte commençant par = + - @ pour
+   qu'un tableur ne l'exécute jamais comme une formule. */
+function celluleCSV(valeur) {
+  if (valeur === null || valeur === undefined) return '';
+  if (typeof valeur === 'number') return Number.isInteger(valeur) ? String(valeur) : String(valeur).replace('.', ',');
+  let texte = String(valeur);
+  if (/^[=+\-@\t\r]/.test(texte)) texte = "'" + texte;
+  return /[";\n\r]/.test(texte) ? '"' + texte.replace(/"/g, '""') + '"' : texte;
+}
+
+function versCSV(lignes) {
+  /* \uFEFF (BOM) : Excel reconnaît ainsi les accents (UTF-8). */
+  return '\uFEFF' + lignes.map(function (ligne) { return ligne.map(celluleCSV).join(';'); }).join('\r\n') + '\r\n';
+}
+
+function exporterTransactionsCSV() {
+  if (!periodeRapportValide()) return;
+  const lignes = [['Date', 'Type', 'Montant (' + donnees.reglages.devise + ')', 'Catégorie', 'Activité', 'Objectif',
+    'Moyen de paiement', 'Note', 'Justificatif', 'Origine', 'Destination']];
+  const libellesType = { revenu: 'Revenu', depense: 'Dépense', transfert: 'Transfert interne' };
+  donnees.transactions
+    .filter(function (t) { return t.date >= periodeRapport.debut && t.date <= periodeRapport.fin; })
+    .sort(function (a, b) { return a.date.localeCompare(b.date) || a.creeLe - b.creeLe; })
+    .forEach(function (t) {
+      lignes.push([t.date, libellesType[t.type], t.montant, t.categorie || '', nomActivite(t.activiteId), nomObjectif(t.objectifId),
+        t.moyen || '', t.note || '', t.justificatif || '', t.source || '', t.destination || '']);
+    });
+  telechargerTexte('cap-transactions-' + periodeRapport.debut + '-au-' + periodeRapport.fin + '.csv', versCSV(lignes), 'text/csv;charset=utf-8');
+}
+
+function exporterRapportCSV() {
+  if (!periodeRapportValide()) return;
+  const lignes = [['Rapport Cap', 'Du ' + periodeRapport.debut + ' au ' + periodeRapport.fin, 'Montants en ' + donnees.reglages.devise], []];
+  calculerRapport(periodeRapport.debut, periodeRapport.fin).forEach(function (section) {
+    lignes.push([section.titre]);
+    if (section.note) lignes.push([section.note]);
+    lignes.push(section.colonnes.map(function (colonne) { return colonne.format === 'pourcent' ? colonne.titre + ' (%)' : colonne.titre; }));
+    section.lignes.forEach(function (ligne) { lignes.push(ligne); });
+    if (!section.lignes.length) lignes.push([section.vide || 'Aucune donnée']);
+    lignes.push([]);
+  });
+  telechargerTexte('cap-rapport-' + periodeRapport.debut + '-au-' + periodeRapport.fin + '.csv', versCSV(lignes), 'text/csv;charset=utf-8');
+}
+
 /* ---------- 9. Tableau de bord (accueil) ---------- */
 
 /* Met à jour les totaux et le libellé de la période. */
@@ -1243,6 +2017,7 @@ function rendreTableauDeBord() {
   rendreAlertesBudget();
   rendreResumeActivites();
   rendreResumeObjectifs();
+  rendreResumeInvestissements();
 }
 
 /* ---------- 10. Écran Transactions ---------- */
@@ -1579,7 +2354,7 @@ function validerFormulaire() {
   let valide = true;
 
   if (montantBrut === '' || !Number.isSafeInteger(montant) || montant < 1) {
-    signalerErreur('montant', 'Entre un montant entier en FCFA (au moins 1).');
+    signalerErreur('montant', 'Entre un montant entier en ' + donnees.reglages.devise + ' (au moins 1).');
     valide = false;
   }
   if (date === '') {
@@ -1742,16 +2517,138 @@ function supprimerTransaction(id) {
 
 /* ---------- 12. Paramètres ---------- */
 
-/* Affiche la liste des catégories dans l'écran Paramètres. */
+/* Devise, rappel et catégories dans l'écran Paramètres. */
 function rendreParametres() {
-  const ul = document.getElementById('liste-categories-parametres');
-  ul.innerHTML = '';
+  document.querySelectorAll('.libelle-devise').forEach(function (element) {
+    element.textContent = donnees.reglages.devise;
+  });
+  const champDevise = document.getElementById('param-devise');
+  if (document.activeElement !== champDevise) champDevise.value = donnees.reglages.devise;
+  document.getElementById('param-rappel').value = String(donnees.reglages.rappelJours);
 
+  const ul = document.getElementById('liste-categories-parametres');
+  ul.replaceChildren();
   for (const categorie of donnees.reglages.categories) {
     const li = document.createElement('li');
-    li.textContent = categorie;
+    const nom = document.createElement('span');
+    nom.className = 'nom-categorie';
+    nom.textContent = categorie;
+    const usages = usagesCategorie(categorie);
+    if (usages) {
+      const detail = document.createElement('small');
+      detail.textContent = 'Utilisée ' + usages + ' fois';
+      nom.appendChild(detail);
+    }
+    const renommer = document.createElement('button');
+    renommer.type = 'button';
+    renommer.className = 'btn btn-secondaire';
+    renommer.textContent = 'Renommer';
+    renommer.setAttribute('aria-label', 'Renommer la catégorie ' + categorie);
+    renommer.addEventListener('click', function () { renommerCategorie(categorie); });
+    const supprimer = document.createElement('button');
+    supprimer.type = 'button';
+    supprimer.className = 'btn btn-secondaire';
+    supprimer.textContent = 'Supprimer';
+    supprimer.setAttribute('aria-label', 'Supprimer la catégorie ' + categorie);
+    supprimer.addEventListener('click', function () { supprimerCategorie(categorie); });
+    li.append(nom, renommer, supprimer);
     ul.appendChild(li);
   }
+}
+
+/* Nombre de transactions et de budgets qui utilisent une catégorie. */
+function usagesCategorie(nom) {
+  return donnees.transactions.filter(function (t) { return t.categorie === nom; }).length +
+    donnees.budgets.filter(function (b) { return b.type === 'categorie' && b.categorie === nom; }).length;
+}
+
+/* Renvoie un message d'erreur, ou '' si le nom convient. */
+function verifierNomCategorie(nom, ancien) {
+  if (!nom) return 'Indique un nom.';
+  if (nom.length > 60) return '60 caractères au maximum.';
+  const doublon = donnees.reglages.categories.some(function (categorie) {
+    return categorie !== ancien && categorie.toLocaleLowerCase() === nom.toLocaleLowerCase();
+  });
+  return doublon ? 'Cette catégorie existe déjà.' : '';
+}
+
+function ajouterCategorie() {
+  const champ = document.getElementById('nouvelle-categorie');
+  const nom = champ.value.trim();
+  const erreur = verifierNomCategorie(nom, null);
+  document.getElementById('erreur-categorie-parametre').textContent = erreur;
+  if (erreur) return;
+  const avant = JSON.stringify(donnees);
+  donnees.reglages.categories.push(nom);
+  if (!enregistrerDonnees()) { donnees = JSON.parse(avant); rendreTout(); return; }
+  champ.value = '';
+  proposerAnnulation(avant, 'Catégorie « ' + nom + ' » ajoutée.');
+  rendreTout();
+}
+
+/* Le nouveau nom est reporté sur les transactions, budgets et achats
+   d'objectif qui utilisaient l'ancien. */
+function renommerCategorie(ancien) {
+  const saisie = prompt('Nouveau nom pour « ' + ancien + ' » :', ancien);
+  if (saisie === null) return;
+  const nom = saisie.trim();
+  if (nom === ancien) return;
+  const erreur = verifierNomCategorie(nom, ancien);
+  if (erreur) { alert(erreur); return; }
+  const avant = JSON.stringify(donnees);
+  donnees.reglages.categories = donnees.reglages.categories.map(function (c) { return c === ancien ? nom : c; });
+  donnees.transactions.forEach(function (t) { if (t.categorie === ancien) t.categorie = nom; });
+  donnees.budgets.forEach(function (b) { if (b.categorie === ancien) b.categorie = nom; });
+  donnees.objectifs.forEach(function (o) { if (o.achat && o.achat.categorie === ancien) o.achat.categorie = nom; });
+  if (!enregistrerDonnees()) { donnees = JSON.parse(avant); rendreTout(); return; }
+  proposerAnnulation(avant, 'Catégorie renommée en « ' + nom + ' ».');
+  rendreTout();
+}
+
+function supprimerCategorie(nom) {
+  const usages = usagesCategorie(nom);
+  if (usages) {
+    alert('« ' + nom + ' » est utilisée ' + usages + ' fois. Renomme-la, ou modifie d’abord les transactions et budgets concernés.');
+    return;
+  }
+  if (donnees.reglages.categories.length <= 1) {
+    alert('Garde au moins une catégorie : une dépense en a besoin.');
+    return;
+  }
+  if (!confirm('Supprimer la catégorie « ' + nom + ' » ?')) return;
+  const avant = JSON.stringify(donnees);
+  donnees.reglages.categories = donnees.reglages.categories.filter(function (c) { return c !== nom; });
+  if (!enregistrerDonnees()) { donnees = JSON.parse(avant); rendreTout(); return; }
+  proposerAnnulation(avant, 'Catégorie « ' + nom + ' » supprimée.');
+  rendreTout();
+}
+
+function enregistrerDevise() {
+  const champ = document.getElementById('param-devise');
+  const devise = champ.value.trim();
+  const erreur = document.getElementById('erreur-devise');
+  if (!reglagesValides({ devise: devise })) {
+    erreur.textContent = 'De 1 à 10 lettres ou symboles monétaires (ex : FCFA, €).';
+    return;
+  }
+  erreur.textContent = '';
+  if (devise === donnees.reglages.devise) return;
+  const avant = JSON.stringify(donnees);
+  donnees.reglages.devise = devise;
+  if (!enregistrerDonnees()) { donnees = JSON.parse(avant); rendreTout(); return; }
+  champ.blur();
+  proposerAnnulation(avant, 'Devise affichée : ' + devise + '.');
+  rendreTout();
+}
+
+function enregistrerRappel() {
+  const delai = Number(document.getElementById('param-rappel').value);
+  if (!DELAIS_RAPPEL.includes(delai)) return;
+  const avant = JSON.stringify(donnees);
+  donnees.reglages.rappelJours = delai;
+  if (!enregistrerDonnees()) { donnees = JSON.parse(avant); rendreTout(); return; }
+  proposerAnnulation(avant, delai ? 'Rappel après ' + delai + (delai > 1 ? ' jours' : ' jour') + ' sans saisie.' : 'Rappel désactivé.');
+  rendreTout();
 }
 
 function ouvrirFormulaireActivite(id) {
@@ -2021,11 +2918,13 @@ function rendreTout() {
   rendreActivites();
   rendreBudgets();
   rendreObjectifs();
+  rendreInvestissements();
   rendreTableauDeBord();
   remplirFiltreMois();
   rendreTransactions();
   rendreParametres();
   rendreRappelSauvegarde();
+  rendreRapport();
 }
 
 /* Associe chaque bouton de la page à sa fonction. */
@@ -2086,9 +2985,9 @@ function installerEcouteurs() {
   });
 
   /* Choix de la période du tableau de bord. */
-  document.querySelectorAll('.chip').forEach(function (chip) {
+  document.querySelectorAll('[data-periode]').forEach(function (chip) {
     chip.addEventListener('click', function () {
-      document.querySelectorAll('.chip').forEach(function (c) { c.classList.remove('actif'); });
+      document.querySelectorAll('[data-periode]').forEach(function (c) { c.classList.remove('actif'); });
       chip.classList.add('actif');
       periode.mode = chip.dataset.periode;
       /* Les deux dates ne s'affichent qu'en mode personnalisé. */
@@ -2129,23 +3028,55 @@ function installerEcouteurs() {
       fermerFormulaire();
     }
   });
-  ['voile-activite', 'voile-budget', 'voile-objectif', 'voile-cotisation', 'voile-achat'].forEach(function (idVoile) {
-    document.getElementById(idVoile).addEventListener('click', function (e) {
-      if (e.target.id === idVoile) e.target.classList.add('cache');
+  document.querySelectorAll('.voile').forEach(function (voile) {
+    voile.addEventListener('click', function (e) {
+      if (e.target === voile) voile.classList.add('cache');
     });
   });
 
-  /* La touche Échap ferme aussi le formulaire. */
+  /* La touche Échap ferme aussi les formulaires. */
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
-      fermerFormulaire();
-      document.getElementById('voile-activite').classList.add('cache');
-      document.getElementById('voile-budget').classList.add('cache');
-      document.getElementById('voile-objectif').classList.add('cache');
-      document.getElementById('voile-cotisation').classList.add('cache');
-      document.getElementById('voile-achat').classList.add('cache');
+      document.querySelectorAll('.voile').forEach(function (voile) { voile.classList.add('cache'); });
     }
   });
+
+  /* Investissements */
+  document.getElementById('btn-nouvel-investissement').addEventListener('click', function () { ouvrirFormulaireInvestissement(null); });
+  document.getElementById('formulaire-investissement').addEventListener('submit', function (e) {
+    e.preventDefault();
+    enregistrerInvestissement();
+  });
+  document.getElementById('formulaire-operation').addEventListener('submit', function (e) {
+    e.preventDefault();
+    enregistrerOperationInvestissement();
+  });
+  document.getElementById('operation-type').addEventListener('change', actualiserTypeOperation);
+
+  /* Rapports */
+  document.querySelectorAll('[data-raccourci]').forEach(function (chip) {
+    chip.addEventListener('click', function () { choisirRaccourciRapport(chip.dataset.raccourci); });
+  });
+  ['rapport-debut', 'rapport-fin'].forEach(function (idChamp) {
+    document.getElementById(idChamp).addEventListener('change', function () {
+      periodeRapport = { debut: document.getElementById('rapport-debut').value, fin: document.getElementById('rapport-fin').value };
+      document.querySelectorAll('[data-raccourci]').forEach(function (chip) { chip.classList.remove('actif'); });
+      rendreRapport();
+    });
+  });
+  document.getElementById('btn-csv-transactions').addEventListener('click', exporterTransactionsCSV);
+  document.getElementById('btn-csv-rapport').addEventListener('click', exporterRapportCSV);
+
+  /* Paramètres */
+  document.getElementById('formulaire-devise').addEventListener('submit', function (e) {
+    e.preventDefault();
+    enregistrerDevise();
+  });
+  document.getElementById('formulaire-categorie').addEventListener('submit', function (e) {
+    e.preventDefault();
+    ajouterCategorie();
+  });
+  document.getElementById('param-rappel').addEventListener('change', enregistrerRappel);
 
   /* Dès que l'on corrige un champ, son message d'erreur disparaît. */
   const champsSuivis = ['champ-montant', 'champ-date', 'champ-categorie', 'champ-source', 'champ-destination'];
@@ -2188,6 +3119,10 @@ periode.debut = premierJourMois(new Date());
 periode.fin = aujourdhuiISO();
 document.getElementById('date-debut').value = periode.debut;
 document.getElementById('date-fin').value = periode.fin;
+
+periodeRapport = { debut: premierJourMois(new Date()), fin: dernierJourMois(new Date()) };
+document.getElementById('rapport-debut').value = periodeRapport.debut;
+document.getElementById('rapport-fin').value = periodeRapport.fin;
 
 installerEcouteurs();
 rendreTout();
