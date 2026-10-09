@@ -1,5 +1,5 @@
 /* ============================================================
-   Cap — feuille de style (étapes 1 et 2)
+   Cap — feuille de style (étapes 1 à 4)
    Mise en page simple : une colonne centrée, flexbox pour les
    lignes, grid pour les cartes de totaux. Aucun framework.
    ============================================================ */
@@ -257,6 +257,47 @@ main {
 
 .barre-progression .progression-depassee {
   background: var(--couleur-depense);
+}
+
+.historique-cotisations {
+  margin-top: 10px;
+  font-size: 0.9rem;
+}
+
+.historique-cotisations summary {
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.historique-cotisations ul {
+  margin-top: 8px;
+}
+
+.ligne-cotisation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.bouton-retirer-cotisation {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+}
+
+.case-a-cocher {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.case-a-cocher input {
+  width: 20px;
+  height: 20px;
 }
 
 .filtre-mois-budget {
@@ -653,7 +694,10 @@ main {
      Les champs "large" occupent toute la largeur. */
   #formulaire-transaction,
   #formulaire-activite,
-  #formulaire-budget {
+  #formulaire-budget,
+  #formulaire-objectif,
+  #formulaire-cotisation,
+  #formulaire-achat {
     display: grid;
     grid-template-columns: 1fr 1fr;
     column-gap: 16px;

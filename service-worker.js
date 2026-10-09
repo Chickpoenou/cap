@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cap-shell-v1';
+const CACHE_NAME = 'cap-shell-v4';
 const APP_FILES = [
   './',
   './index.html',
