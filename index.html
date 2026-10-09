@@ -7,7 +7,7 @@
   <title>Cap — suivi des activités et des finances</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="cap.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="cap.svg">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="stylesheet" href="style.css">
   <script src="app.js" defer></script>
 </head>
@@ -39,6 +39,12 @@
 
     <!-- ============ ÉCRAN 1 : ACCUEIL / TABLEAU DE BORD ============ -->
     <section id="ecran-accueil" class="ecran actif">
+
+      <!-- Rappel : les données ne vivent que sur cet appareil -->
+      <div id="rappel-sauvegarde" class="carte rappel-sauvegarde cache" role="status">
+        <p id="rappel-sauvegarde-texte"></p>
+        <button type="button" class="btn btn-secondaire" id="btn-rappel-exporter">Exporter une sauvegarde</button>
+      </div>
 
       <!-- Ajout rapide : gros boutons accessibles au doigt -->
       <div class="ajout-rapide">
@@ -192,6 +198,8 @@
           <button type="button" class="btn btn-secondaire" id="btn-exporter-brut">Exporter le contenu brut du stockage</button>
         </div>
         <p id="etat-sauvegarde" class="note" aria-live="polite"></p>
+        <p id="derniere-sauvegarde" class="note"></p>
+        <p id="etat-stockage" class="note"></p>
       </div>
 
       <div class="carte">
@@ -211,8 +219,14 @@
 
   </main>
 
+  <!-- Bandeau d'annulation de la dernière saisie -->
+  <div id="bandeau-annulation" class="bandeau-annulation cache" role="status" aria-live="polite">
+    <span id="texte-annulation"></span>
+    <button type="button" id="btn-annuler-derniere">Annuler</button>
+  </div>
+
   <footer class="pied">
-    <p>Cap — version 0.4 (étapes 1 à 4). Données enregistrées uniquement sur cet appareil ; pense à les sauvegarder.</p>
+    <p>Cap — version 0.5 (étapes 1 à 4). Données enregistrées uniquement sur cet appareil ; pense à les sauvegarder.</p>
   </footer>
 
   <!-- ============ FORMULAIRE DE TRANSACTION (superposition) ============ -->
@@ -264,6 +278,12 @@
         <div class="champ">
           <label for="champ-activite">Activité liée</label>
           <select id="champ-activite"></select>
+        </div>
+
+        <div class="champ">
+          <label for="champ-objectif">Objectif lié</label>
+          <select id="champ-objectif"></select>
+          <small class="note" id="aide-objectif"></small>
         </div>
 
         <div class="champ">

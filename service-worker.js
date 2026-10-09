@@ -1,17 +1,25 @@
-const CACHE_NAME = 'cap-shell-v5';
+const CACHE_NAME = 'cap-shell-v7';
 const APP_FILES = [
   './',
   './index.html',
   './style.css',
   './app.js',
   './manifest.json',
-  './cap.svg'
+  './cap.svg',
+  './icone-192.png',
+  './icone-512.png',
+  './icone-maskable-512.png',
+  './apple-touch-icon.png'
 ];
 
 self.addEventListener('install', function (event) {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(function (cache) { return cache.addAll(APP_FILES); })
+      .then(function (cache) {
+        /* cache: 'reload' : copies prises sur le serveur, jamais dans
+           le cache HTTP du navigateur (qui peut être plus ancien). */
+        return cache.addAll(APP_FILES.map(function (fichier) { return new Request(fichier, { cache: 'reload' }); }));
+      })
       .then(function () { return self.skipWaiting(); })
   );
 });
@@ -40,8 +48,10 @@ self.addEventListener('fetch', function (event) {
   const estFichierApplication = event.request.mode === 'navigate' ||
     ['script', 'style', 'manifest'].includes(event.request.destination);
   if (estFichierApplication) {
+    /* cache: 'no-cache' revérifie auprès du serveur : sans cela, le
+       navigateur peut mélanger une ancienne page et un nouveau script. */
     event.respondWith(
-      fetch(event.request).then(function (reponse) {
+      fetch(event.request, { cache: 'no-cache' }).then(function (reponse) {
         if (reponse.ok) {
           const copie = reponse.clone();
           caches.open(CACHE_NAME).then(function (cache) { cache.put(event.request, copie); });

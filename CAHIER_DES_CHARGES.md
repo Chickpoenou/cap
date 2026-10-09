@@ -2,7 +2,7 @@
 
 **Dossier du projet :** `suivi-activites`
 **Date :** 27 septembre 2026
-**Statut :** version 2 — base validée ; étapes 1 à 3 en cours d'implémentation
+**Statut :** version 2 — base validée ; étapes 1 à 4 implémentées (application en version 0.5)
 
 ---
 
@@ -241,7 +241,7 @@ La première version est considérée utilisable si l'utilisateur peut :
 1. Définir les écrans et les catégories.
 2. Construire le tableau de bord, la saisie des transactions et les sauvegardes JSON.
 3. Ajouter et suivre les activités, budgets et alertes (implémenté en version 0.3).
-4. Ajouter objectifs d'épargne et calcul des cotisations.
+4. Ajouter objectifs d'épargne et calcul des cotisations (implémenté en version 0.4 ; date estimée, rappel de sauvegarde et annulation en version 0.5).
 5. Ajouter investissements et rapports.
 6. Vérifier l'utilisation hors ligne, l'export et la restauration.
 7. Ajouter la synchronisation en ligne seulement après validation de la version personnelle hors ligne.
@@ -280,6 +280,8 @@ suivi-activites/
 ├── manifest.json           <- métadonnées d'installation PWA
 ├── service-worker.js       <- cache de l'interface hors ligne
 ├── cap.svg                 <- icône de l'application
+├── icone-*.png             <- icônes PNG (192, 512, maskable) pour l'installation
+├── apple-touch-icon.png    <- icône d'écran d'accueil sur iPhone
 ├── .gitignore              <- exclusions des fichiers personnels
 └── VERSIONNAGE_GIT.md      <- aide-mémoire des versions locales
 ```

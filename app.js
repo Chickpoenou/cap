@@ -1,6 +1,7 @@
 /* ============================================================
    Cap — logique de l'application
-   Étapes 1 à 4 : navigation, transactions, activités, budgets et objectifs.
+   Étapes 1 à 4 : navigation, transactions, activités, budgets et objectifs,
+   avec rappel de sauvegarde et annulation de la dernière saisie.
    Toutes les données sont enregistrées dans le stockage local
    du navigateur (localStorage), rien n'est envoyé sur Internet.
    ============================================================ */
@@ -10,6 +11,13 @@
 /* Nom de la "clé" sous laquelle les données sont enregistrées
    dans le stockage local du navigateur. */
 const CLE_STOCKAGE = 'cap-donnees';
+
+/* Date de la dernière sauvegarde exportée, gardée à part :
+   restaurer une sauvegarde ne doit pas effacer ce souvenir. */
+const CLE_DERNIERE_SAUVEGARDE = 'cap-derniere-sauvegarde';
+
+/* Nombre de jours sans sauvegarde avant d'afficher un rappel. */
+const JOURS_AVANT_RAPPEL = 7;
 
 /* Catégories de dépenses proposées au départ (modifiables
    plus tard depuis les paramètres — étape 6). */
@@ -48,6 +56,11 @@ let idBudgetModification = null;
 let idObjectifModification = null;
 let idObjectifCotisation = null;
 let idObjectifAchat = null;
+
+/* Dernière action annulable : copie des données juste avant
+   la modification, et minuteur qui masque le bandeau. */
+let annulation = null;
+let minuteurAnnulation = null;
 
 /* ---------- 2. Lecture et enregistrement des données ---------- */
 
@@ -246,7 +259,70 @@ function exporterSauvegarde() {
     donnees: donnees
   };
   telechargerTexte('cap-sauvegarde-' + aujourdhuiISO() + '.json', JSON.stringify(sauvegarde, null, 2), 'application/json');
+  try {
+    localStorage.setItem(CLE_DERNIERE_SAUVEGARDE, aujourdhuiISO());
+  } catch (erreur) {
+    /* Sans stockage, le rappel restera affiché : ce n'est pas grave. */
+  }
   afficherEtatSauvegarde('Sauvegarde JSON téléchargée. Conserve une copie hors de cet appareil.');
+  rendreRappelSauvegarde();
+}
+
+function lireDerniereSauvegarde() {
+  try {
+    const date = localStorage.getItem(CLE_DERNIERE_SAUVEGARDE);
+    return date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : '';
+  } catch (erreur) {
+    return '';
+  }
+}
+
+/* Nombre de jours entiers entre deux dates "AAAA-MM-JJ". */
+function joursEntre(debutISO, finISO) {
+  return Math.round((new Date(finISO + 'T12:00:00') - new Date(debutISO + 'T12:00:00')) / 86400000);
+}
+
+function contientDesDonnees() {
+  return donnees.transactions.length + donnees.activites.length + donnees.objectifs.length + donnees.budgets.length > 0;
+}
+
+/* Rappel sur l'accueil + date de la dernière sauvegarde dans les
+   paramètres (cahier des charges §7). */
+function rendreRappelSauvegarde() {
+  const derniere = lireDerniereSauvegarde();
+  const anciennete = derniere ? joursEntre(derniere, aujourdhuiISO()) : null;
+  document.getElementById('derniere-sauvegarde').textContent = derniere
+    ? 'Dernière sauvegarde exportée depuis cet appareil : ' + formaterDateLongue(derniere) + '.'
+    : 'Aucune sauvegarde exportée depuis cet appareil.';
+
+  let message = '';
+  if (contientDesDonnees() && !stockageEnErreur) {
+    if (!derniere) {
+      message = "Tes données n'existent que sur cet appareil et n'ont jamais été sauvegardées. Exporte une copie et garde-la ailleurs.";
+    } else if (anciennete >= JOURS_AVANT_RAPPEL) {
+      message = 'Dernière sauvegarde il y a ' + anciennete + ' jours. Exporte une copie à jour pour ne rien perdre.';
+    }
+  }
+  document.getElementById('rappel-sauvegarde-texte').textContent = message;
+  document.getElementById('rappel-sauvegarde').classList.toggle('cache', message === '');
+}
+
+/* Demande au navigateur de ne pas effacer les données de lui-même
+   (manque de place, longue inutilisation, notamment sur iPhone). */
+async function demanderStockagePersistant() {
+  const etat = document.getElementById('etat-stockage');
+  if (!navigator.storage || !navigator.storage.persist) {
+    etat.textContent = 'Ce navigateur ne permet pas de protéger le stockage : les sauvegardes régulières sont indispensables.';
+    return;
+  }
+  try {
+    const persistant = (await navigator.storage.persisted()) || (await navigator.storage.persist());
+    etat.textContent = persistant
+      ? "Stockage protégé : le navigateur ne doit pas effacer les données de lui-même. Elles restent perdues si l'appareil l'est : garde des sauvegardes."
+      : "Stockage non protégé : le navigateur peut effacer les données s'il manque de place ou après une longue inutilisation. Exporte régulièrement une sauvegarde.";
+  } catch (erreur) {
+    etat.textContent = "L'état du stockage n'a pas pu être vérifié. Exporte régulièrement une sauvegarde.";
+  }
 }
 
 function exporterContenuBrut() {
@@ -295,6 +371,7 @@ async function restaurerSauvegarde(fichier) {
     messageErreurStockage = '';
     document.getElementById('alerte-stockage').hidden = true;
     moisFiltre = aujourdhuiISO().slice(0, 7);
+    masquerAnnulation();
     rendreTout();
     afficherEtatSauvegarde('Sauvegarde restaurée avec succès.');
   } catch (erreur) {
@@ -302,6 +379,31 @@ async function restaurerSauvegarde(fichier) {
   } finally {
     document.getElementById('fichier-sauvegarde').value = '';
   }
+}
+
+/* Après une modification réussie : propose de revenir à l'état
+   précédent pendant 10 secondes (cahier des charges §6). */
+function proposerAnnulation(avant, message) {
+  clearTimeout(minuteurAnnulation);
+  annulation = avant;
+  document.getElementById('texte-annulation').textContent = message;
+  document.getElementById('bandeau-annulation').classList.remove('cache');
+  minuteurAnnulation = setTimeout(masquerAnnulation, 10000);
+}
+
+function masquerAnnulation() {
+  clearTimeout(minuteurAnnulation);
+  annulation = null;
+  document.getElementById('bandeau-annulation').classList.add('cache');
+}
+
+function annulerDerniereAction() {
+  if (annulation === null) return;
+  const actuel = JSON.stringify(donnees);
+  donnees = JSON.parse(annulation);
+  if (!enregistrerDonnees()) donnees = JSON.parse(actuel);
+  masquerAnnulation();
+  rendreTout();
 }
 
 /* Crée un identifiant unique pour une nouvelle transaction. */
@@ -575,18 +677,29 @@ function rendreAlertesBudget() {
       (objectif.dateCible && objectif.dateCible < aujourdhuiISO() && montantRestantObjectif(objectif) > 0) || cotisationEnRetard(objectif)
     );
   });
-  if (!mois && !alertesObjectif.length) {
-    vide.textContent = 'Pour afficher les budgets, choisis une période qui reste dans un seul mois.';
-    vide.hidden = false;
-  } else {
-    vide.textContent = alertesBudget.length || alertesObjectif.length ? '' : 'Aucune alerte de budget ou d’objectif pour cette période.';
-    vide.hidden = alertesBudget.length + alertesObjectif.length > 0;
-  }
+  /* Projet qui dépasse le budget prévu sur sa fiche (toutes dates
+     confondues). Une activité terminée ne déclenche plus d'alerte. */
+  const alertesActivite = donnees.activites.filter(function (activite) {
+    return activite.statut !== 'terminee' && activite.budget !== null && activite.budget !== undefined &&
+      totauxActivite(activite.id).depenses > activite.budget;
+  });
+  const nombreAlertes = alertesBudget.length + alertesObjectif.length + alertesActivite.length;
+  vide.hidden = nombreAlertes > 0;
+  vide.textContent = mois
+    ? 'Aucune alerte de budget, d’activité ou d’objectif pour cette période.'
+    : 'Pour afficher les budgets mensuels, choisis une période qui reste dans un seul mois.';
   for (const budget of alertesBudget) {
     const utilise = depensesBudget(budget);
     const li = document.createElement('li');
     li.textContent = nomPorteeBudget(budget) + ' : ' + formaterMontant(utilise) + ' dépensés sur ' +
       formaterMontant(budget.montant) + (utilise > budget.montant ? ' — budget dépassé.' : ' — seuil de ' + budget.seuil + ' % atteint.');
+    liste.appendChild(li);
+  }
+  for (const activite of alertesActivite) {
+    const depenses = totauxActivite(activite.id).depenses;
+    const li = document.createElement('li');
+    li.textContent = 'Activité « ' + activite.nom + ' » : ' + formaterMontant(depenses) + ' dépensés pour un budget prévu de ' +
+      formaterMontant(activite.budget) + ' — dépassement de ' + formaterMontant(depenses - activite.budget) + '.';
     liste.appendChild(li);
   }
   for (const objectif of alertesObjectif) {
@@ -716,6 +829,39 @@ function periodesRestantesObjectif(objectif) {
   return Math.max(1, mois);
 }
 
+/* Date à laquelle la cible serait atteinte si l'on continue au
+   rythme des cotisations déjà enregistrées. null si impossible à
+   estimer (aucune cotisation, objectif atteint ou terminé). */
+function estimationObjectif(objectif) {
+  const enregistre = totalCotisationsEnregistrees(objectif);
+  const restant = montantRestantObjectif(objectif);
+  if (objectif.statut !== 'encours' || enregistre === 0 || restant === 0) return null;
+  const aujourdHui = aujourdhuiISO();
+  let debut = versISO(new Date(objectif.creeLe));
+  objectif.cotisations.forEach(function (cotisation) { if (cotisation.date < debut) debut = cotisation.date; });
+  /* Au moins une semaine, pour qu'une première cotisation
+     ne donne pas un rythme quotidien démesuré. */
+  const jours = Math.max(7, joursEntre(debut, aujourdHui));
+  const parJour = enregistre / jours;
+  const joursRestants = Math.ceil(restant / parJour);
+  const parPeriode = Math.round(parJour * (objectif.frequence === 'hebdomadaire' ? 7 : 30.44));
+  if (joursRestants > 365 * 50) return { date: null, parPeriode: parPeriode };
+  const fin = new Date(aujourdHui + 'T12:00:00');
+  fin.setDate(fin.getDate() + joursRestants);
+  return { date: versISO(fin), parPeriode: parPeriode };
+}
+
+function texteEstimationObjectif(objectif) {
+  const estimation = estimationObjectif(objectif);
+  if (!estimation) return '';
+  const rythme = 'Au rythme actuel (environ ' + formaterMontant(estimation.parPeriode) + ' par ' +
+    (objectif.frequence === 'hebdomadaire' ? 'semaine' : 'mois') + ')';
+  if (!estimation.date) return rythme + ', la cible ne serait pas atteinte avant plus de 50 ans.';
+  const tropTard = objectif.dateCible && estimation.date > objectif.dateCible;
+  return rythme + ', la cible serait atteinte vers le ' + formaterDateCourte(estimation.date) +
+    (tropTard ? ', après la date souhaitée.' : '.');
+}
+
 function resumeRythmeObjectif(objectif) {
   const restant = montantRestantObjectif(objectif);
   if (restant === 0) return 'Objectif atteint : tu as déjà mis de côté le montant cible.';
@@ -770,6 +916,14 @@ function construireCarteObjectif(objectif, compacte) {
   details.textContent = (objectif.dateCible ? 'Souhaité pour le ' + formaterDateCourte(objectif.dateCible) + ' · ' : '') +
     (objectif.reserve ? 'Réserve : ' + objectif.reserve + ' · ' : '') + resumeRythmeObjectif(objectif);
   carte.appendChild(details);
+
+  const estimation = texteEstimationObjectif(objectif);
+  if (estimation) {
+    const ligneEstimation = document.createElement('p');
+    ligneEstimation.className = 'note';
+    ligneEstimation.textContent = estimation;
+    carte.appendChild(ligneEstimation);
+  }
 
   if (objectif.montantInitial > 0) {
     const initial = document.createElement('p');
@@ -934,20 +1088,23 @@ function enregistrerObjectif() {
   }
   if (!enregistrerDonnees()) { donnees = JSON.parse(avant); rendreTout(); return; }
   document.getElementById('voile-objectif').classList.add('cache');
+  proposerAnnulation(avant, 'Objectif enregistré.');
   rendreTout();
 }
 
 function supprimerObjectif(id) {
   const objectif = donnees.objectifs.find(function (o) { return o.id === id; });
   if (!objectif) return;
-  if (objectif.cotisations.length || objectif.achat) {
-    alert('Cet objectif possède un historique financier et ne peut pas être supprimé. Marque-le « Terminé » pour le garder dans la liste.');
+  const transactionsLiees = donnees.transactions.some(function (t) { return t.objectifId === id; });
+  if (objectif.cotisations.length || objectif.achat || transactionsLiees) {
+    alert('Cet objectif possède un historique financier ou des transactions liées et ne peut pas être supprimé. Marque-le « Terminé » pour le garder dans la liste.');
     return;
   }
   if (!confirm('Supprimer l’objectif « ' + objectif.nom + ' » ?')) return;
   const avant = JSON.stringify(donnees);
   donnees.objectifs = donnees.objectifs.filter(function (o) { return o.id !== id; });
   if (!enregistrerDonnees()) donnees = JSON.parse(avant);
+  else proposerAnnulation(avant, 'Objectif supprimé.');
   rendreTout();
 }
 
@@ -993,6 +1150,7 @@ function enregistrerCotisation() {
   objectif.cotisations.push({ id: nouvelIdentifiant(), montant: montant, date: date, note: document.getElementById('cotisation-note').value.trim(), creeLe: Date.now() });
   if (!enregistrerDonnees()) { donnees = JSON.parse(avant); rendreTout(); return; }
   document.getElementById('voile-cotisation').classList.add('cache');
+  proposerAnnulation(avant, 'Cotisation de ' + formaterMontant(montant) + ' enregistrée.');
   rendreTout();
 }
 
@@ -1004,6 +1162,7 @@ function supprimerCotisation(objectifId, cotisationId) {
   const avant = JSON.stringify(donnees);
   objectif.cotisations = objectif.cotisations.filter(function (c) { return c.id !== cotisationId; });
   if (!enregistrerDonnees()) { donnees = JSON.parse(avant); rendreTout(); return; }
+  proposerAnnulation(avant, 'Cotisation retirée.');
   rendreTout();
 }
 
@@ -1044,6 +1203,7 @@ function enregistrerAchatObjectif() {
   if (!enregistrerDonnees()) { donnees = JSON.parse(avant); rendreTout(); return; }
   document.getElementById('voile-achat').classList.add('cache');
   moisFiltre = date.slice(0, 7);
+  proposerAnnulation(avant, 'Achat enregistré.');
   rendreTout();
 }
 
@@ -1183,7 +1343,8 @@ function construireLigne(tr) {
   const libelleType = tr.type === 'revenu' ? 'Revenu' : (tr.type === 'depense' ? 'Dépense' : 'Transfert interne');
 
   /* Détail affiché en petit : type, catégorie, activité liée. */
-  const details = [libelleType, tr.categorie, nomActivite(tr.activiteId)]
+  const objectifAffiche = nomObjectif(tr.objectifId);
+  const details = [libelleType, tr.categorie, nomActivite(tr.activiteId), objectifAffiche ? 'Objectif : ' + objectifAffiche : '']
     .filter(function (partie) { return partie !== '' && partie !== undefined; })
     .join(' · ');
   const detailsTransfert = tr.type === 'transfert' && (tr.source || tr.destination)
@@ -1231,6 +1392,20 @@ function construireLigne(tr) {
   return li;
 }
 
+/* Vrai si la transaction est la dépense d'achat d'un objectif :
+   son lien et son type ne doivent alors pas changer. */
+function estAchatObjectif(tr) {
+  if (!tr || !tr.objectifId) return false;
+  const objectif = donnees.objectifs.find(function (o) { return o.id === tr.objectifId; });
+  return Boolean(objectif && objectif.achat && objectif.achat.transactionId === tr.id);
+}
+
+function nomObjectif(id) {
+  if (!id) return '';
+  const objectif = donnees.objectifs.find(function (o) { return o.id === id; });
+  return objectif ? objectif.nom : '';
+}
+
 /* Nom d'une activité à partir de son identifiant. */
 function nomActivite(id) {
   if (!id) {
@@ -1250,8 +1425,18 @@ function ouvrirFormulaire(mode, id) {
   modeFormulaire = mode;
   idEnModification = id || null;
 
+  const transactionOuverte = mode === 'modification'
+    ? donnees.transactions.find(function (t) { return t.id === id; })
+    : null;
   remplirChoixCategories();
   remplirChoixActivites();
+  remplirChoixObjectifs(transactionOuverte ? transactionOuverte.objectifId : '');
+  const lienAchat = estAchatObjectif(transactionOuverte);
+  const choixObjectif = document.getElementById('champ-objectif');
+  choixObjectif.disabled = lienAchat;
+  document.getElementById('aide-objectif').textContent = lienAchat
+    ? "Dépense d'achat de cet objectif : le lien ne peut pas être modifié."
+    : "Simple rattachement. Pour faire progresser l'objectif, utilise « Cotiser ».";
 
   const champType = document.getElementById('champ-type');
   const titre = document.getElementById('titre-formulaire');
@@ -1261,11 +1446,12 @@ function ouvrirFormulaire(mode, id) {
     const tr = donnees.transactions.find(function (t) { return t.id === id; });
 
     champType.value = tr.type;
-    champType.disabled = Boolean(tr.objectifId);
+    champType.disabled = lienAchat;
     document.getElementById('champ-montant').value = tr.montant;
     document.getElementById('champ-date').value = tr.date;
     document.getElementById('champ-categorie').value = tr.categorie || '';
     document.getElementById('champ-activite').value = tr.activiteId || '';
+    choixObjectif.value = tr.objectifId || '';
     document.getElementById('champ-moyen').value = tr.moyen || '';
     document.getElementById('champ-note').value = tr.note || '';
     document.getElementById('champ-justificatif').value = tr.justificatif || '';
@@ -1308,6 +1494,7 @@ function reinitialiserFormulaire() {
   document.getElementById('champ-type').value = 'depense';
   document.getElementById('champ-categorie').value = '';
   document.getElementById('champ-activite').value = '';
+  document.getElementById('champ-objectif').value = '';
   document.getElementById('champ-date').value = aujourdhuiISO();
 }
 
@@ -1350,6 +1537,26 @@ function remplirChoixActivites() {
     const option = document.createElement('option');
     option.value = activite.id;
     option.textContent = activite.nom;
+    select.appendChild(option);
+  }
+}
+
+/* Remplit la liste des objectifs : ceux en cours, plus celui déjà
+   lié à la transaction ouverte même s'il est terminé. */
+function remplirChoixObjectifs(objectifIdActuel) {
+  const select = document.getElementById('champ-objectif');
+  select.replaceChildren();
+
+  const optionSans = document.createElement('option');
+  optionSans.value = '';
+  optionSans.textContent = '— Aucun —';
+  select.appendChild(optionSans);
+
+  for (const objectif of donnees.objectifs) {
+    if (objectif.statut !== 'encours' && objectif.id !== objectifIdActuel) continue;
+    const option = document.createElement('option');
+    option.value = objectif.id;
+    option.textContent = objectif.nom + (objectif.statut === 'termine' ? ' (terminé)' : '');
     select.appendChild(option);
   }
 }
@@ -1436,6 +1643,7 @@ function enregistrerFormulaire() {
   }
 
   const activiteId = document.getElementById('champ-activite').value;
+  const objectifChoisi = document.getElementById('champ-objectif').value;
   const moyen = document.getElementById('champ-moyen').value.trim();
   const note = document.getElementById('champ-note').value.trim();
   const justificatif = document.getElementById('champ-justificatif').value.trim();
@@ -1450,6 +1658,7 @@ function enregistrerFormulaire() {
     tr.date = valeurs.date;
     tr.categorie = valeurs.categorie;
     tr.activiteId = activiteId;
+    if (!estAchatObjectif(tr)) tr.objectifId = objectifChoisi;
     tr.moyen = moyen;
     tr.note = note;
     tr.justificatif = justificatif;
@@ -1475,6 +1684,7 @@ function enregistrerFormulaire() {
       date: valeurs.date,
       categorie: valeurs.categorie,
       activiteId: activiteId,
+      objectifId: objectifChoisi,
       moyen: moyen,
       note: note,
       justificatif: justificatif,
@@ -1489,6 +1699,7 @@ function enregistrerFormulaire() {
     return;
   }
   fermerFormulaire();
+  proposerAnnulation(avantModification, modeFormulaire === 'modification' ? 'Transaction modifiée.' : 'Transaction ajoutée.');
 
   /* Le filtre saute sur le mois de la transaction enregistrée,
      pour que la saisie soit visible immédiatement. */
@@ -1505,7 +1716,7 @@ function supprimerTransaction(id) {
   }
 
   const libelleType = tr.type === 'revenu' ? 'ce revenu' : (tr.type === 'depense' ? 'cette dépense' : 'ce transfert');
-  const objectifLie = tr.objectifId ? donnees.objectifs.find(function (o) { return o.id === tr.objectifId; }) : null;
+  const objectifLie = estAchatObjectif(tr) ? donnees.objectifs.find(function (o) { return o.id === tr.objectifId; }) : null;
   const confirmation = confirm('Supprimer ' + libelleType + ' de ' + formaterMontant(tr.montant) +
     (objectifLie ? ' ? Cela retirera aussi l’achat de l’objectif « ' + objectifLie.nom + ' » et le rouvrira.' : ' ?'));
   if (!confirmation) {
@@ -1525,6 +1736,7 @@ function supprimerTransaction(id) {
     return;
   }
   fermerFormulaire();
+  proposerAnnulation(avantSuppression, 'Transaction supprimée.');
   rendreTout();
 }
 
@@ -1638,6 +1850,7 @@ function enregistrerActivite() {
     return;
   }
   document.getElementById('voile-activite').classList.add('cache');
+  proposerAnnulation(avant, 'Activité enregistrée.');
   rendreTout();
 }
 
@@ -1654,6 +1867,8 @@ function supprimerActivite(id) {
   const avant = JSON.stringify(donnees);
   donnees.activites = donnees.activites.filter(function (a) { return a.id !== id; });
   if (!enregistrerDonnees()) donnees = JSON.parse(avant);
+  else proposerAnnulation(avant, 'Activité supprimée.');
+  document.getElementById('voile-activite').classList.add('cache');
   rendreTout();
 }
 
@@ -1757,6 +1972,7 @@ function enregistrerBudget() {
   }
   document.getElementById('mois-budget').value = valeurs.mois;
   document.getElementById('voile-budget').classList.add('cache');
+  proposerAnnulation(avant, 'Budget enregistré.');
   rendreTout();
 }
 
@@ -1766,6 +1982,8 @@ function supprimerBudget(id) {
   const avant = JSON.stringify(donnees);
   donnees.budgets = donnees.budgets.filter(function (b) { return b.id !== id; });
   if (!enregistrerDonnees()) donnees = JSON.parse(avant);
+  else proposerAnnulation(avant, 'Budget supprimé.');
+  document.getElementById('voile-budget').classList.add('cache');
   rendreTout();
 }
 
@@ -1792,6 +2010,7 @@ function effacerToutesLesDonnees() {
     return;
   }
   moisFiltre = aujourdhuiISO().slice(0, 7);
+  masquerAnnulation();
   rendreTout();
 }
 
@@ -1806,6 +2025,7 @@ function rendreTout() {
   remplirFiltreMois();
   rendreTransactions();
   rendreParametres();
+  rendreRappelSauvegarde();
 }
 
 /* Associe chaque bouton de la page à sa fonction. */
@@ -1942,6 +2162,8 @@ function installerEcouteurs() {
   document.getElementById('champ-type').addEventListener('change', actualiserChampsType);
 
   document.getElementById('btn-exporter').addEventListener('click', exporterSauvegarde);
+  document.getElementById('btn-rappel-exporter').addEventListener('click', exporterSauvegarde);
+  document.getElementById('btn-annuler-derniere').addEventListener('click', annulerDerniereAction);
   document.getElementById('btn-exporter-brut').addEventListener('click', exporterContenuBrut);
   document.getElementById('fichier-sauvegarde').addEventListener('change', function (e) {
     restaurerSauvegarde(e.target.files[0]);
@@ -1969,6 +2191,7 @@ document.getElementById('date-fin').value = periode.fin;
 
 installerEcouteurs();
 rendreTout();
+demanderStockagePersistant();
 
 /* Le service worker rend l'application installable et conserve
    une copie de l'interface pour la consultation hors ligne.

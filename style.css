@@ -322,6 +322,52 @@ main {
   color: #7a211b;
 }
 
+/* Rappel de sauvegarde sur l'accueil */
+.rappel-sauvegarde {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-color: #e9cf8f;
+  background: #fffaf0;
+  color: #6b4e00;
+}
+
+.rappel-sauvegarde p {
+  margin: 0;
+  flex: 1 1 220px;
+}
+
+/* Bandeau "Annuler" après une saisie, en bas de l'écran */
+.bandeau-annulation {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  padding: 10px 12px 10px 16px;
+  border-radius: var(--rayon);
+  background: var(--texte);
+  color: #fff;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+.bandeau-annulation button {
+  border: 0;
+  background: none;
+  color: #9fe3cf;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 6px 8px;
+}
+
 .actions-sauvegarde {
   display: flex;
   flex-wrap: wrap;
