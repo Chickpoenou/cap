@@ -1,0 +1,8 @@
+{
+  "appId": "com.cap.suivi",
+  "appName": "Cap",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  }
+}

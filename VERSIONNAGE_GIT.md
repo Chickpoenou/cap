@@ -37,3 +37,15 @@ Les fichiers de sauvegarde financière exportés sont exclus par `.gitignore` et
 1. Dans `service-worker.js`, augmente le numéro de `CACHE_NAME` (par exemple `cap-shell-v15` → `cap-shell-v16`) et ajoute à `APP_FILES` tout nouveau fichier.
 2. Enregistre la version (`git add .` puis `git commit -m "..."`), puis envoie-la avec `git push`.
 3. Render redéploie automatiquement https://cap-ook7.onrender.com en moins d'une minute. Les téléphones reçoivent la mise à jour à la prochaine ouverture de l'application avec Internet.
+
+## Recompiler l'application Android
+
+Outils nécessaires : Node.js, Java 21 (Temurin) et le SDK Android (plateforme 36) dans `%LOCALAPPDATA%\Android\Sdk`.
+
+```powershell
+cd mobile
+npm install
+npm run apk
+```
+
+L'APK se trouve ensuite dans `mobilendroidppuild\outputspk\debugpp-debug.apk`. À chaque nouvelle version, augmente `versionCode` et `versionName` dans `mobilendroidppuild.gradle`. Les APK ne sont pas ajoutés au dépôt Git.

@@ -250,6 +250,11 @@ La première version est considérée utilisable si l'utilisateur peut :
      - Les numéros de téléphone sont masqués dans les libellés ; le montant retenu est celui de l'opération, jamais le solde.
 6. Vérifier l'utilisation hors ligne, l'export et la restauration (vérifié en version 0.6 ; catégories, devise et rappel de mise à jour modifiables dans Paramètres).
 7. Ajouter la synchronisation en ligne seulement après validation de la version personnelle hors ligne.
+8. Application Android (version 0.11, APK installé directement, hors Google Play) : la version web embarquée avec Capacitor, plus la lecture automatique des SMS Moov Money et MTN MoMo.
+   - Un récepteur natif reçoit chaque SMS, même application fermée, et ne garde que les transactions Mobile Money (paiements, envois, transferts, argent reçu, dépôts, retraits, recharges, forfaits payés) ; les informations de forfait, demandes de paiement et crédits offerts sont écartés sans être stockés.
+   - Une notification « Transaction Mobile Money détectée » ouvre Cap sur l'écran de vérification déjà rempli ; rien n'est enregistré sans validation (choix de l'utilisateur).
+   - Autorisations : réception des SMS (pas l'historique) et notifications, activées depuis Paramètres → SMS automatiques. Les SMS restent sur le téléphone.
+   - Les données de l'application Android sont séparées de celles du site : on passe de l'un à l'autre par une sauvegarde JSON.
 
 ---
 

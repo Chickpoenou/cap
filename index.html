@@ -260,6 +260,12 @@
           <h1>Paramètres</h1>
         </header>
         <div class="grille-cartes">
+          <section class="bloc cache" id="bloc-sms-auto">
+            <h2>SMS automatiques</h2>
+            <p class="note" id="etat-sms-auto"></p>
+            <button type="button" class="btn btn-principal" id="btn-activer-sms">Activer la lecture des SMS</button>
+          </section>
+
           <section class="bloc">
             <h2>Sauvegarde</h2>
             <p id="derniere-sauvegarde" class="note"></p>
@@ -355,6 +361,7 @@
         <p id="resume-sms" class="note"></p>
         <ul id="liste-sms" class="liste-sms"></ul>
         <div class="actions-formulaire">
+          <button type="button" class="btn btn-secondaire cache" id="btn-sms-ignorer">Ignorer ces SMS</button>
           <button type="button" class="btn btn-secondaire" id="btn-sms-retour">Modifier le texte</button>
           <button type="button" class="btn btn-principal" id="btn-enregistrer-sms">Enregistrer</button>
         </div>

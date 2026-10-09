@@ -2337,7 +2337,9 @@ function analyserSMS(brut) {
   return r;
 }
 
-function ouvrirImportSMS(texte) {
+function ouvrirImportSMS(texte, depuisTelephone) {
+  document.getElementById('btn-sms-ignorer').classList.toggle('cache', !depuisTelephone);
+  if (!depuisTelephone) idsSMSTelephone = [];
   document.getElementById('voile-feuille').classList.add('cache');
   document.getElementById('sms-texte').value = texte || '';
   document.getElementById('erreur-sms').textContent = '';
@@ -2544,9 +2546,80 @@ function enregistrerImportSMS() {
   });
   if (!enregistrerDonnees()) { donnees = JSON.parse(avant); rendreTout(); return; }
   document.getElementById('voile-sms').classList.add('cache');
+  oublierSMSTelephone();
   moisFiltre = retenues.map(function (a) { return a.date; }).sort().pop().slice(0, 7);
   proposerAnnulation(avant, ajoutees + (ajoutees > 1 ? ' transactions importées.' : ' transaction importée.'));
   rendreTout();
+}
+
+/* ---------- Application Android : SMS reçus automatiquement ----------
+   Dans l'application Android (Capacitor), un récepteur natif garde les
+   SMS Mobile Money reçus et affiche une notification. À l'ouverture,
+   l'écran de vérification se remplit tout seul ; rien n'est enregistré
+   sans validation. Sur le site web, ces fonctions ne font rien. */
+let idsSMSTelephone = [];
+
+function pluginSMS() {
+  const capacitor = window.Capacitor;
+  if (!capacitor || !capacitor.isNativePlatform || !capacitor.isNativePlatform()) return null;
+  return capacitor.Plugins && capacitor.Plugins.CapSms ? capacitor.Plugins.CapSms : null;
+}
+
+async function verifierSMSRecus() {
+  const plugin = pluginSMS();
+  if (!plugin || !document.getElementById('voile-sms').classList.contains('cache')) return;
+  try {
+    const resultat = await plugin.lire();
+    const messages = (resultat && resultat.messages) || [];
+    if (!messages.length) return;
+    idsSMSTelephone = messages.map(function (message) { return message.id; });
+    ouvrirImportSMS(messages.map(function (message) { return message.texte; }).join('\n\n'), true);
+  } catch (erreur) {
+    /* Lecture impossible : l'import manuel reste disponible. */
+  }
+}
+
+/* Retire de la file du téléphone les SMS traités (enregistrés ou ignorés). */
+async function oublierSMSTelephone() {
+  const plugin = pluginSMS();
+  const ids = idsSMSTelephone;
+  idsSMSTelephone = [];
+  document.getElementById('btn-sms-ignorer').classList.add('cache');
+  if (!plugin || !ids.length) return;
+  try {
+    await plugin.vider({ ids: ids });
+  } catch (erreur) {
+    /* Au pire, les mêmes SMS seront reproposés et signalés « déjà enregistrés ». */
+  }
+}
+
+async function rendreEtatSMSAuto() {
+  const plugin = pluginSMS();
+  const bloc = document.getElementById('bloc-sms-auto');
+  bloc.classList.toggle('cache', !plugin);
+  if (!plugin) return;
+  try {
+    const etat = await plugin.etat();
+    const sms = etat.sms === 'granted';
+    const notifications = etat.notifications === 'granted';
+    document.getElementById('etat-sms-auto').textContent = sms
+      ? 'Actif : les SMS Moov Money et MTN MoMo sont repérés dès leur arrivée' + (notifications ? ', avec une notification.' : '. Autorise les notifications pour être prévenu.')
+      : 'Inactif : autorise la lecture des SMS pour que Cap repère tes transactions Mobile Money.';
+    document.getElementById('btn-activer-sms').classList.toggle('cache', sms && notifications);
+  } catch (erreur) {
+    document.getElementById('etat-sms-auto').textContent = 'État des autorisations indisponible.';
+  }
+}
+
+async function activerSMSAuto() {
+  const plugin = pluginSMS();
+  if (!plugin) return;
+  try {
+    await plugin.demanderPermissions();
+  } catch (erreur) {
+    /* Refus : l'état affiché l'indique. */
+  }
+  rendreEtatSMSAuto();
 }
 
 /* Partage depuis l'application de messages (Android) : le service
@@ -3807,6 +3880,18 @@ function installerEcouteurs() {
     document.getElementById('etape-sms-resultats').classList.add('cache');
   });
   document.getElementById('btn-enregistrer-sms').addEventListener('click', enregistrerImportSMS);
+  document.getElementById('btn-sms-ignorer').addEventListener('click', function () {
+    document.getElementById('voile-sms').classList.add('cache');
+    oublierSMSTelephone();
+  });
+  document.getElementById('btn-activer-sms').addEventListener('click', activerSMSAuto);
+  /* Retour dans l'application (par exemple depuis la notification). */
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') {
+      verifierSMSRecus();
+      rendreEtatSMSAuto();
+    }
+  });
   document.querySelectorAll('[data-action="cotiser"]').forEach(function (bouton) {
     bouton.addEventListener('click', function () {
       feuille.classList.add('cache');
@@ -3946,6 +4031,8 @@ installerEcouteurs();
 rendreTout();
 
 ouvrirPartageSMS();
+verifierSMSRecus();
+rendreEtatSMSAuto();
 
 let minuteurRedimension = null;
 window.addEventListener('resize', function () {
@@ -3957,7 +4044,8 @@ demanderStockagePersistant();
 /* Le service worker rend l'application installable et conserve
    une copie de l'interface pour la consultation hors ligne.
    Il nécessite HTTPS ou localhost. */
-if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+if (!pluginSMS() && !(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) &&
+    'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   window.addEventListener('load', function () {
     navigator.serviceWorker.register('./service-worker.js').catch(function () {
       /* L'application reste utilisable en ligne si l'enregistrement échoue. */
