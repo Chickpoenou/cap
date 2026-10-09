@@ -111,7 +111,17 @@ function structureValide(objet) {
     (objet.objectifs === undefined || (Array.isArray(objet.objectifs) && objet.objectifs.every(objectifValide))) &&
     objetsValides(objet.investissements) &&
     (objet.budgets === undefined || (Array.isArray(objet.budgets) && objet.budgets.every(budgetValide))) &&
-    (objet.reglages === undefined || (objet.reglages !== null && typeof objet.reglages === 'object'));
+    (objet.reglages === undefined || reglagesValides(objet.reglages));
+}
+
+/* Sécurité : la devise et les catégories sont affichées partout ;
+   on n'accepte que des textes courts. */
+function reglagesValides(reglages) {
+  return reglages !== null && typeof reglages === 'object' && !Array.isArray(reglages) &&
+    (reglages.devise === undefined || (typeof reglages.devise === 'string' && /^[\p{L}\p{Sc} ]{1,10}$/u.test(reglages.devise))) &&
+    (reglages.categories === undefined || (Array.isArray(reglages.categories) && reglages.categories.every(function (categorie) {
+      return typeof categorie === 'string' && categorie.trim() !== '' && categorie.length <= 60;
+    })));
 }
 
 function activiteValide(activite) {
@@ -339,18 +349,6 @@ function versISO(date) {
   const mois = String(date.getMonth() + 1).padStart(2, '0');
   const jour = String(date.getDate()).padStart(2, '0');
   return date.getFullYear() + '-' + mois + '-' + jour;
-}
-
-/* Sécurité : remplace les caractères spéciaux (&, <, >...) d'un
-   texte saisi par l'utilisateur avant de l'afficher en HTML.
-   Cela empêche qu'un texte contenant du code HTML casse la page. */
-function echapper(texte) {
-  const remplacements = {
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-  };
-  return String(texte).replace(/[&<>"']/g, function (c) {
-    return remplacements[c];
-  });
 }
 
 /* ---------- 4. Navigation entre les écrans ---------- */
@@ -599,7 +597,7 @@ function rendreAlertesBudget() {
     }
     if (cotisationEnRetard(objectif)) {
       messages.push('cotisations prévues : ' + formaterMontant(montantCotisationsAttendues(objectif)) +
-        ' cumulés, enregistrés : ' + formaterMontant(totalCotise(objectif)));
+        ' cumulés, enregistrés : ' + formaterMontant(totalCotisationsEnregistrees(objectif)));
     }
     li.textContent = 'Objectif « ' + objectif.nom + ' » : ' + messages.join(' ; ') + '.';
     liste.appendChild(li);
@@ -666,8 +664,14 @@ function rendreBudgets() {
 
 /* ---------- 8. Objectifs d'épargne et cotisations ---------- */
 
+/* Somme des seules cotisations saisies depuis la création de l'objectif. */
+function totalCotisationsEnregistrees(objectif) {
+  return objectif.cotisations.reduce(function (total, cotisation) { return total + cotisation.montant; }, 0);
+}
+
+/* Tout ce qui est mis de côté : montant initial + cotisations. */
 function totalCotise(objectif) {
-  return (objectif.montantInitial || 0) + objectif.cotisations.reduce(function (total, cotisation) { return total + cotisation.montant; }, 0);
+  return (objectif.montantInitial || 0) + totalCotisationsEnregistrees(objectif);
 }
 
 function montantRestantObjectif(objectif) {
@@ -676,22 +680,27 @@ function montantRestantObjectif(objectif) {
 
 function montantCotisationsAttendues(objectif) {
   if (!objectif.cotisationPrevue || objectif.statut !== 'encours') return 0;
+  /* On ne peut pas attendre plus que ce qui restait à épargner au départ. */
+  const plafond = Math.max(0, objectif.cible - (objectif.montantInitial || 0));
   const debutISO = versISO(new Date(objectif.creeLe));
   const debut = new Date(debutISO + 'T12:00:00');
   const aujourdHui = new Date(aujourdhuiISO() + 'T12:00:00');
   if (objectif.frequence === 'hebdomadaire') {
     const periodes = Math.max(0, Math.floor((aujourdHui - debut) / (7 * 86400000)));
-    return Math.min(objectif.cible, periodes * objectif.cotisationPrevue);
+    return Math.min(plafond, periodes * objectif.cotisationPrevue);
   }
   let periodes = (aujourdHui.getFullYear() - debut.getFullYear()) * 12 + aujourdHui.getMonth() - debut.getMonth();
   const dernierJourMois = new Date(aujourdHui.getFullYear(), aujourdHui.getMonth() + 1, 0).getDate();
   const jourEcheance = Math.min(debut.getDate(), dernierJourMois);
   if (aujourdHui.getDate() < jourEcheance) periodes -= 1;
-  return Math.min(objectif.cible, Math.max(0, periodes) * objectif.cotisationPrevue);
+  return Math.min(plafond, Math.max(0, periodes) * objectif.cotisationPrevue);
 }
 
+/* Le montant initial existait avant le plan : il réduit le reste à
+   épargner, mais ne remplace pas les cotisations prévues. */
 function cotisationEnRetard(objectif) {
-  return montantRestantObjectif(objectif) > 0 && totalCotise(objectif) < montantCotisationsAttendues(objectif);
+  return montantRestantObjectif(objectif) > 0 &&
+    totalCotisationsEnregistrees(objectif) < montantCotisationsAttendues(objectif);
 }
 
 function periodesRestantesObjectif(objectif) {
@@ -1178,25 +1187,34 @@ function construireLigne(tr) {
     .filter(function (partie) { return partie !== '' && partie !== undefined; })
     .join(' · ');
   const detailsTransfert = tr.type === 'transfert' && (tr.source || tr.destination)
-    ? ' · ' + echapper(tr.source || 'Origine inconnue') + ' → ' + echapper(tr.destination || 'Destination inconnue')
+    ? ' · ' + (tr.source || 'Origine inconnue') + ' → ' + (tr.destination || 'Destination inconnue')
     : '';
 
   /* Le corps de la ligne est un bouton : le toucher ouvre la
-     modification. echapper() protège l'affichage des textes saisis. */
-  const noteAffichee = tr.note ? echapper(tr.note) : libelleType;
+     modification. textContent affiche les textes saisis tels quels,
+     sans jamais les interpréter comme du HTML. */
   const corps = document.createElement('button');
   corps.type = 'button';
   corps.className = 'corps-transaction';
   corps.title = 'Modifier cette transaction';
-  corps.innerHTML =
-    '<span class="t-sens type-' + tr.type + '">' + signe + '</span>' +
-    '<span class="t-infos">' +
-    '<strong>' + noteAffichee + '</strong>' +
-    '<small>' + echapper(details) + detailsTransfert + '</small>' +
-    '</span>' +
-    '<span class="t-montant type-' + tr.type + '">' +
-    (tr.type === 'revenu' ? '+' : (tr.type === 'depense' ? '−' : '')) + formaterMontant(tr.montant) +
-    '</span>';
+
+  const sens = document.createElement('span');
+  sens.className = 't-sens type-' + tr.type;
+  sens.textContent = signe;
+
+  const infos = document.createElement('span');
+  infos.className = 't-infos';
+  const titre = document.createElement('strong');
+  titre.textContent = tr.note || libelleType;
+  const sousTitre = document.createElement('small');
+  sousTitre.textContent = details + detailsTransfert;
+  infos.append(titre, sousTitre);
+
+  const montant = document.createElement('span');
+  montant.className = 't-montant type-' + tr.type;
+  montant.textContent = (tr.type === 'revenu' ? '+' : (tr.type === 'depense' ? '−' : '')) + formaterMontant(tr.montant);
+
+  corps.append(sens, infos, montant);
   corps.addEventListener('click', function () { ouvrirFormulaire('modification', tr.id); });
   li.appendChild(corps);
 
@@ -1524,8 +1542,6 @@ function rendreParametres() {
   }
 }
 
-/* Efface toutes les données de l'appareil, après deux
-   confirmations (action définitive). */
 function ouvrirFormulaireActivite(id) {
   idActiviteModification = id || null;
   const activite = id ? donnees.activites.find(function (a) { return a.id === id; }) : null;
@@ -1753,6 +1769,8 @@ function supprimerBudget(id) {
   rendreTout();
 }
 
+/* Efface toutes les données de l'appareil, après deux
+   confirmations (action définitive). */
 function effacerToutesLesDonnees() {
   if (!confirm('Effacer TOUTES les données enregistrées sur cet appareil ?')) {
     return;
