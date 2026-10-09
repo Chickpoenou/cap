@@ -255,7 +255,7 @@ La première version est considérée utilisable si l'utilisateur peut :
 - **Commentaires en français** dans le code.
 - **Stockage local** du navigateur (localStorage) + export/import d'un fichier `.json` ; export CSV pour les rapports.
 - **PWA** : `manifest.json` + `service-worker.js` + icônes pour l'installation et le hors ligne.
-- **Hébergement statique** possible ensuite (GitHub Pages ou Render).
+- **Hébergement** : site statique sur Render, https://cap-ook7.onrender.com, redéployé automatiquement à chaque envoi sur la branche `main` du dépôt GitHub. Les données étant liées à l'adresse du site, c'est la seule adresse à utiliser.
 - **Devise** : FCFA (XOF), formatée avec séparation des milliers.
 
 ### Précisions de la version 0.6
