@@ -1,278 +1,845 @@
 /* ============================================================
-   Cap — feuille de style (étapes 1 à 4)
-   Mise en page simple : une colonne centrée, flexbox pour les
-   lignes, grid pour les cartes de totaux. Aucun framework.
+   Cap — feuille de style (version 0.7)
+   Téléphone : barre d'onglets en bas, bouton + flottant.
+   Ordinateur (900 px et plus) : menu à gauche, contenu sur
+   toute la largeur, accueil en deux colonnes. Aucun framework.
    ============================================================ */
 
-/* ---------- 1. Variables et base ---------- */
+/* ---------- 1. Couleurs et base ---------- */
 
-/* Couleurs et valeurs réunies au même endroit : faciles à changer. */
 :root {
-  --fond: #f2f5f7;            /* arrière-plan général */
-  --carte: #ffffff;           /* fond des cartes */
-  --bordure: #d7dee3;         /* bordures et filets */
-  --texte: #22303a;           /* texte principal */
-  --texte-clair: #5c6b76;     /* texte secondaire */
-  --accent: #0e6e5c;          /* couleur principale (vert profond) */
-  --couleur-revenu: #0e7a4e;  /* vert pour les revenus */
-  --couleur-depense: #b3261e; /* rouge pour les dépenses */
-  --couleur-transfert: #5c6b76;
-  --rayon: 12px;              /* arrondi des cartes */
+  --fond: #f2f4f3;              /* arrière-plan général */
+  --surface: #ffffff;           /* blocs et formulaires */
+  --surface-2: #eef2f0;         /* zones secondaires, champs */
+  --bordure: #e1e7e4;
+  --texte: #13201c;
+  --texte-2: #5d6c66;           /* texte secondaire */
+  --marque: #0b4f42;            /* vert profond de l'icône */
+  --marque-2: #0e6e5c;
+  --marque-clair: #e1f0ea;
+  --entree: #11795a;            /* revenus */
+  --entree-fond: #dff3ea;
+  --sortie: #c0402c;            /* dépenses */
+  --sortie-fond: #fbe8e3;
+  --epargne: #a86a12;           /* objectifs, cotisations */
+  --epargne-fond: #fbefd9;
+  --attention: #8a5a00;
+  --attention-fond: #fff4dc;
+  --rayon: 18px;
+  --ombre: 0 1px 2px rgba(19, 32, 28, 0.05), 0 6px 20px rgba(19, 32, 28, 0.05);
+  --hauteur-nav: 68px;
 }
 
-/* Le "box model" inclut les paddings dans les largeurs. */
 * {
   box-sizing: border-box;
 }
 
-body {
-  margin: 0 auto;                 /* colonne centrée */
-  max-width: 760px;               /* largeur maximum sur grand écran */
-  font-family: system-ui, "Segoe UI", Roboto, Arial, sans-serif;
-  background: var(--fond);
-  color: var(--texte);
-  line-height: 1.5;
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
-/* Contour visible au clavier (accessibilité). */
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  background: var(--fond);
+  color: var(--texte);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Les chiffres gardent tous la même largeur : les montants s'alignent. */
+.solde-montant, .solde-flux strong, .op-montant, .stat strong, .tableau .nombre, .resume-mois {
+  font-variant-numeric: tabular-nums;
+}
+
+h1, h2, h3, p {
+  margin: 0;
+}
+
+button, input, select, textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
 :focus-visible {
-  outline: 3px solid var(--accent);
+  outline: 3px solid var(--marque-2);
   outline-offset: 2px;
 }
 
-/* ---------- 2. En-tête ---------- */
-
-.entete {
-  display: flex;
-  justify-content: space-between; /* titre à gauche, roue dentée à droite */
-  align-items: center;
-  padding: 20px 16px 12px;
+.sprite {
+  display: none;
 }
 
-.entete h1 {
-  margin: 0;
-  font-size: 1.6rem;
-  letter-spacing: 0.05em;
+/* Icônes en trait, héritent de la couleur du texte. */
+.icone {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.sous-titre {
-  margin: 0;
-  color: var(--texte-clair);
-  font-size: 0.9rem;
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
-.btn-icone {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: 1px solid var(--bordure);
-  background: var(--carte);
-  font-size: 20px;
-  cursor: pointer;
+.cache,
+[hidden] {
+  display: none !important;
 }
 
-/* ---------- 3. Navigation par onglets ---------- */
+/* ---------- 2. Structure et navigation ---------- */
 
-/* Barre collante : reste visible quand on fait défiler la page.
-   Sur petit écran, les onglets défilent horizontalement. */
-.navigation {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  display: flex;
-  gap: 8px;
-  padding: 8px 16px;
-  background: var(--fond);
-  border-bottom: 1px solid var(--bordure);
-  overflow-x: auto;
-  scrollbar-width: none;         /* Firefox : cacher la barre de défilement */
+.contenu {
+  padding: 12px 16px calc(var(--hauteur-nav) + 96px + env(safe-area-inset-bottom));
 }
 
-.navigation::-webkit-scrollbar {
-  display: none;                 /* Chrome : cacher la barre de défilement */
-}
-
-.onglet {
-  flex-shrink: 0;                /* les onglets gardent leur largeur */
-  padding: 8px 14px;
-  border: 1px solid var(--bordure);
-  border-radius: 999px;          /* pilule */
-  background: var(--carte);
-  color: var(--texte);
-  font-size: 15px;
-  white-space: nowrap;           /* le libellé ne passe jamais à la ligne */
-  cursor: pointer;
-}
-
-.onglet.actif {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #ffffff;
-}
-
-/* ---------- 4. Écrans et cartes ---------- */
-
-main {
-  padding: 16px;
-}
-
-/* Un seul écran visible à la fois : celui qui porte la classe "actif". */
 .ecran {
   display: none;
 }
 
 .ecran.actif {
   display: block;
+  animation: apparition 0.18s ease-out;
+}
+
+@keyframes apparition {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Téléphone : barre fixe en bas de l'écran. */
+.navigation {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  justify-content: space-around;
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+  background: rgba(255, 255, 255, 0.96);
+  border-top: 1px solid var(--bordure);
+  backdrop-filter: blur(10px);
+}
+
+.marque,
+.navigation .nav-ajouter {
+  display: none;
+}
+
+.onglet {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 4px 2px;
+  border: 0;
+  background: none;
+  color: var(--texte-2);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.onglet .icone {
+  width: 44px;
+  height: 28px;
+  padding: 3px 11px;
+  border-radius: 999px;
+  transition: background 0.15s;
+}
+
+.onglet.actif {
+  color: var(--marque);
+}
+
+.onglet.actif .icone {
+  background: var(--marque-clair);
+}
+
+/* Bouton + flottant, au-dessus de la barre d'onglets. */
+.fab {
+  position: fixed;
+  right: 18px;
+  bottom: calc(var(--hauteur-nav) + 16px + env(safe-area-inset-bottom));
+  z-index: 31;
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border: 0;
+  border-radius: 20px;
+  background: var(--marque);
+  color: #fff;
+  box-shadow: 0 8px 22px rgba(11, 79, 66, 0.35);
+}
+
+.fab .icone {
+  width: 28px;
+  height: 28px;
+  stroke-width: 2.2;
+}
+
+/* En-tête des écrans secondaires */
+.entete-ecran {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  margin: 4px 0 14px;
+}
+
+.entete-ecran h1 {
+  flex: 1;
+  font-size: 1.6rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.btn-retour {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-left: -8px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+}
+
+.btn-retour:hover {
+  background: var(--surface-2);
+}
+
+/* ---------- 3. Accueil ---------- */
+
+.solde {
+  position: relative;
+  overflow: hidden;
+  padding: 16px 18px 18px;
+  border-radius: 26px;
+  background: var(--marque);
+  color: #fff;
+}
+
+/* Léger reflet dans l'angle : donne de la matière à la carte. */
+.solde::after {
+  content: "";
+  position: absolute;
+  right: -70px;
+  top: -90px;
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.14), transparent 70%);
+  pointer-events: none;
+}
+
+.solde-haut {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-mobile {
+  font-weight: 800;
+  font-size: 1.15rem;
+  letter-spacing: 0.02em;
+}
+
+.choix-periode {
+  margin-left: auto;
+}
+
+.choix-periode select {
+  appearance: none;
+  padding: 7px 30px 7px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 10px center / 14px;
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.choix-periode select option {
+  color: var(--texte);
+}
+
+.btn-rond-clair {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+.dates-solde {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+.dates-solde input {
+  margin-left: 4px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--texte);
+}
+
+.solde-libelle {
+  margin-top: 18px;
+  font-size: 13.5px;
+  opacity: 0.8;
+}
+
+.solde-montant {
+  margin-top: 2px;
+  font-size: 2.35rem;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.solde-montant .devise {
+  margin-left: 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  opacity: 0.75;
+  letter-spacing: 0;
+}
+
+.solde-flux {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.solde-flux > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.solde-flux small {
+  display: block;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.solde-flux strong {
+  display: block;
+  overflow: hidden;
+  font-size: 0.95rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.solde-flux > div > span:last-child {
+  min-width: 0;
+}
+
+.flux-icone {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.flux-icone .icone {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2.3;
+}
+
+.flux-entree { color: var(--entree); }
+.flux-sortie { color: var(--sortie); }
+
+/* Actions rapides : pastilles rondes avec libellé dessous */
+.actions-rapides {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin: 18px 0 6px;
+}
+
+.actions-rapides button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.actions-rapides button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pastille {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 18px;
+  background: #e5ebef;
+  color: #34434d;
+}
+
+.pastille-entree { background: var(--entree-fond); color: var(--entree); }
+.pastille-sortie { background: var(--sortie-fond); color: var(--sortie); }
+.pastille-epargne { background: var(--epargne-fond); color: var(--epargne); }
+
+/* ---------- 4. Blocs et listes ---------- */
+
+.bloc {
+  margin-top: 14px;
+  padding: 16px;
+  border-radius: var(--rayon);
+  background: var(--surface);
+  box-shadow: var(--ombre);
+}
+
+.bloc h2 {
+  font-size: 1.02rem;
+  font-weight: 700;
+}
+
+.bloc > h2 {
+  margin-bottom: 10px;
+}
+
+.bloc-titre {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.bloc-danger h2 {
+  color: var(--sortie);
+}
+
+.lien {
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--marque-2);
+  font-size: 13.5px;
+  font-weight: 650;
+}
+
+.lien-discret {
+  margin-top: 6px;
+  color: var(--texte-2);
+  font-weight: 500;
+  text-decoration: underline;
+}
+
+.note {
+  color: var(--texte-2);
+  font-size: 13px;
+}
+
+.vide {
+  padding: 8px 0;
+  color: var(--texte-2);
+  font-size: 14px;
+}
+
+.resume-mois {
+  margin: -6px 0 4px;
+  color: var(--texte-2);
+  font-size: 13.5px;
+}
+
+.liste-simple {
+  margin: 0;
+  padding-left: 18px;
+}
+
+/* Liste d'opérations, façon relevé mobile money */
+.liste-operations {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.titre-jour {
+  padding: 14px 0 4px;
+  color: var(--texte-2);
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.titre-jour:first-child {
+  padding-top: 0;
+}
+
+.operation {
+  border-bottom: 1px solid var(--surface-2);
+}
+
+.operation:last-child {
+  border-bottom: 0;
+}
+
+.corps-operation {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 0;
+  border: 0;
+  background: none;
+  text-align: left;
+}
+
+.op-icone {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  color: var(--texte-2);
+}
+
+.op-icone .icone {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2.1;
+}
+
+.type-revenu .op-icone { background: var(--entree-fond); color: var(--entree); }
+.type-depense .op-icone { background: var(--sortie-fond); color: var(--sortie); }
+
+.op-infos {
+  flex: 1;
+  min-width: 0;
+}
+
+.op-infos strong {
+  display: block;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.op-infos small {
+  display: block;
+  overflow: hidden;
+  color: var(--texte-2);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.op-montant {
+  flex-shrink: 0;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.type-revenu .op-montant { color: var(--entree); }
+.type-depense .op-montant { color: var(--texte); }
+.type-transfert .op-montant { color: var(--texte-2); }
+
+/* Alertes */
+.liste-alertes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.liste-alertes li {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--attention-fond);
+  color: var(--attention);
+  font-size: 13.5px;
+}
+
+.liste-alertes li + li {
+  margin-top: 8px;
+}
+
+.liste-alertes .icone {
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+}
+
+/* Bandeaux (rappel de sauvegarde, erreur de stockage) */
+.bandeau {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-size: 13.5px;
+}
+
+.bandeau p {
+  flex: 1;
+}
+
+.bandeau-attention {
+  background: var(--attention-fond);
+  color: var(--attention);
+}
+
+.bandeau-attention .lien {
+  color: var(--attention);
+  text-decoration: underline;
+}
+
+.bandeau-erreur {
+  margin: 0 0 12px;
+  background: var(--sortie-fond);
+  color: #7d2316;
+}
+
+/* Résumés de l'accueil : une ligne par élément */
+.ligne-resume {
+  display: block;
+  width: 100%;
+  padding: 10px 0;
+  border: 0;
+  border-bottom: 1px solid var(--surface-2);
+  background: none;
+  text-align: left;
+}
+
+.ligne-resume:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.ligne-resume:first-child {
+  padding-top: 0;
+}
+
+.ligne-resume-haut {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.ligne-resume-haut strong {
+  font-weight: 600;
+}
+
+.ligne-resume-haut span {
+  color: var(--texte-2);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* ---------- 5. Cartes (activités, objectifs, budgets…) ---------- */
+
+.grille-cartes {
+  display: grid;
+  gap: 12px;
 }
 
 .carte {
-  background: var(--carte);
-  border: 1px solid var(--bordure);
-  border-radius: var(--rayon);
   padding: 16px;
-  margin-bottom: 12px;
+  border-radius: var(--rayon);
+  background: var(--surface);
+  box-shadow: var(--ombre);
 }
 
-.carte h2 {
-  margin: 0 0 8px;
+.carte-element h3 {
   font-size: 1.05rem;
+  font-weight: 700;
 }
 
 .ligne-flex {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
-.note {
-  color: var(--texte-clair);
-  font-size: 0.85rem;
-  margin: 4px 0 12px;
-}
-
-.vide {
-  color: var(--texte-clair);
-  font-style: italic;
-}
-
-.liste-simple {
-  margin: 0;
-  padding-left: 20px;
-}
-
-.carte-danger {
-  border-color: #e7b8b4;
-}
-
-.carte-element h3 {
-  margin: 0;
-  font-size: 1rem;
-}
-
-.liste-cartes .carte-element:last-child {
-  margin-bottom: 0;
-}
-
-.carte-compacte {
-  padding: 12px;
-  margin-bottom: 8px;
+.carte-element > .note,
+.carte-element > p {
+  margin-top: 8px;
 }
 
 .resume-financier {
-  margin: 8px 0;
-  font-size: 0.9rem;
+  margin-top: 10px;
+  font-size: 14px;
   font-weight: 600;
 }
 
-.actions-carte {
-  display: flex;
-  flex-wrap: wrap;                /* 4 boutons tiennent aussi sur téléphone */
+/* Trois chiffres côte à côte */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  margin-top: 10px;
+  margin-top: 12px;
 }
 
-.actions-carte .btn {
-  min-height: 40px;
-  padding: 8px 12px;
+.stat {
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.stat small {
+  display: block;
+  color: var(--texte-2);
+  font-size: 12px;
+}
+
+.stat strong {
+  display: block;
+  overflow: hidden;
+  font-size: 0.95rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stat.positif strong { color: var(--entree); }
+.stat.negatif strong { color: var(--sortie); }
+
+.montant-principal {
+  margin-top: 12px;
+  font-size: 1.45rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.montant-principal small {
+  color: var(--texte-2);
   font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .badge-statut {
   display: inline-block;
-  padding: 3px 9px;
+  padding: 3px 10px;
   border-radius: 999px;
-  background: #e8edf1;
-  color: var(--texte);
-  font-size: 0.75rem;
+  background: var(--surface-2);
+  color: var(--texte-2);
+  font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
 }
 
 .statut-encours,
-.statut-normal {
-  background: #e0f2e9;
-  color: #145b3e;
-}
-
+.statut-normal { background: var(--entree-fond); color: var(--entree); }
 .statut-pause,
-.statut-idee {
-  background: #fff2d7;
-  color: #795400;
-}
+.statut-idee,
+.statut-alerte { background: var(--attention-fond); color: var(--attention); }
+.statut-terminee { background: var(--surface-2); color: var(--texte-2); }
+.statut-depasse { background: var(--sortie-fond); color: var(--sortie); }
 
-.statut-terminee {
-  background: #e8edf1;
-  color: #45545f;
-}
-
-.statut-alerte {
-  background: #fff2d7;
-  color: #795400;
-}
-
-.statut-depasse,
 .texte-alerte {
-  background: #fdecea;
-  color: #8a211b;
+  color: var(--sortie);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .barre-progression {
-  height: 10px;
+  height: 8px;
+  margin-top: 10px;
   overflow: hidden;
   border-radius: 999px;
-  background: #e8edf1;
+  background: var(--surface-2);
+}
+
+.ligne-resume .barre-progression {
+  margin-top: 0;
+  height: 6px;
 }
 
 .barre-progression span {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--couleur-revenu);
+  background: var(--marque-2);
 }
 
-.barre-progression .progression-alerte {
-  background: #d48b00;
+.barre-progression .progression-alerte { background: #d18a0b; }
+.barre-progression .progression-depassee { background: var(--sortie); }
+
+.actions-carte {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 14px;
 }
 
-.barre-progression .progression-depassee {
-  background: var(--couleur-depense);
+.actions-carte .btn {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 7px 12px;
+  border-radius: 12px;
+  font-size: 13.5px;
 }
 
 .historique-cotisations {
-  margin-top: 10px;
-  font-size: 0.9rem;
+  margin-top: 12px;
+  font-size: 13.5px;
 }
 
 .historique-cotisations summary {
-  color: var(--accent);
-  font-weight: 600;
+  color: var(--marque-2);
+  font-weight: 650;
   cursor: pointer;
 }
 
 .historique-cotisations ul {
   margin-top: 8px;
+  padding: 0;
+  list-style: none;
 }
 
 .ligne-cotisation {
@@ -280,458 +847,259 @@ main {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 6px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--surface-2);
 }
 
 .bouton-retirer-cotisation {
   flex: 0 0 auto;
-  min-height: 32px;
-  padding: 4px 8px;
-  font-size: 0.8rem;
-}
-
-.case-a-cocher {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.case-a-cocher input {
-  width: 20px;
-  height: 20px;
+  min-height: 30px !important;
+  padding: 3px 10px !important;
+  font-size: 12.5px !important;
 }
 
 .filtre-mois-budget {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 12px 0;
-  color: var(--texte-clair);
-  font-size: 0.9rem;
+  margin-bottom: 12px;
+  color: var(--texte-2);
+  font-size: 14px;
 }
 
-.filtre-mois-budget input {
-  padding: 8px;
+.filtre-mois-budget input,
+.select-compact,
+.dates-rapport input {
+  padding: 8px 10px;
   border: 1px solid var(--bordure);
-  border-radius: 8px;
-  font: inherit;
-}
-
-.alerte-stockage {
-  border-color: #e7b8b4;
-  background: #fff7f6;
-  color: #7a211b;
-}
-
-/* Rappel de sauvegarde sur l'accueil */
-.rappel-sauvegarde {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  border-color: #e9cf8f;
-  background: #fffaf0;
-  color: #6b4e00;
-}
-
-.rappel-sauvegarde p {
-  margin: 0;
-  flex: 1 1 220px;
-}
-
-/* Bandeau "Annuler" après une saisie, en bas de l'écran */
-.bandeau-annulation {
-  position: fixed;
-  left: 50%;
-  bottom: 16px;
-  transform: translateX(-50%);
-  z-index: 60;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: max-content;
-  max-width: calc(100% - 32px);
-  padding: 10px 12px 10px 16px;
-  border-radius: var(--rayon);
-  background: var(--texte);
-  color: #fff;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
-}
-
-.bandeau-annulation button {
-  border: 0;
-  background: none;
-  color: #9fe3cf;
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-  padding: 6px 8px;
-}
-
-.actions-sauvegarde {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.bouton-fichier {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-.actions-sauvegarde .btn {
-  flex: 1 1 180px;
-}
-
-/* ---------- 5. Boutons ---------- */
-
-.btn {
-  flex: 1;                        /* les boutons se partagent la largeur */
-  padding: 12px 16px;
-  border: 1px solid transparent;
   border-radius: 10px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  min-height: 48px;               /* cible confortable pour le doigt */
+  background: var(--surface);
 }
 
-.btn-depense {
-  background: var(--couleur-depense);
-  color: #ffffff;
-}
-
-.btn-revenu {
-  background: var(--couleur-revenu);
-  color: #ffffff;
-}
-
-/* Les troisièmes boutons (Transfert, Cotisation) : neutres. */
-.ajout-rapide .btn:not(.btn-depense):not(.btn-revenu) {
-  background: var(--carte);
-  border-color: var(--bordure);
-  color: var(--texte);
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-principal {
-  background: var(--accent);
-  color: #ffffff;
-}
-
-.btn-secondaire {
-  background: var(--carte);
-  border-color: var(--bordure);
-  color: var(--texte);
-}
-
-.btn-danger {
-  background: var(--couleur-depense);
-  color: #ffffff;
-}
-
-.ajout-rapide {
+/* Onglets segmentés (Objectifs / Investissements) */
+.segments {
   display: flex;
-  gap: 8px;
-  margin-bottom: 4px;
+  gap: 4px;
+  margin-bottom: 14px;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--surface-2);
 }
 
-/* ---------- 6. Choix de la période (accueil) ---------- */
-
-.choix-periode {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.chip {
-  padding: 6px 12px;
-  border: 1px solid var(--bordure);
-  border-radius: 999px;
-  background: var(--carte);
+.segment {
+  flex: 1;
+  padding: 8px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--texte-2);
   font-size: 14px;
-  cursor: pointer;
+  font-weight: 650;
 }
 
-.chip.actif {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #ffffff;
+.segment.actif {
+  background: var(--surface);
+  color: var(--texte);
+  box-shadow: 0 1px 3px rgba(19, 32, 28, 0.1);
 }
 
-.dates-personnalisees {
+/* Menu de l'écran Plus */
+.menu {
+  overflow: hidden;
+  border-radius: var(--rayon);
+  background: var(--surface);
+  box-shadow: var(--ombre);
+}
+
+.menu button {
   display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin-top: 10px;
-  font-size: 14px;
-  color: var(--texte-clair);
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--surface-2);
+  background: none;
+  text-align: left;
 }
 
-.libelle-periode {
-  margin: 10px 0 0;
-  font-weight: 600;
+.menu button:last-child {
+  border-bottom: 0;
 }
 
-/* ---------- 7. Cartes de totaux ---------- */
-
-/* Trois cartes de largeur égale ; passent à la verticale
-   si l'écran est trop étroit. */
-.grille-totaux {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px;
+.menu .pastille {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: var(--marque-clair);
+  color: var(--marque);
+  box-shadow: none;
 }
 
-.total {
+.menu strong {
+  display: block;
+}
+
+.menu small {
+  color: var(--texte-2);
+  font-size: 13px;
+}
+
+.menu > button > span:nth-child(2) {
+  flex: 1;
+}
+
+.chevron {
+  color: var(--texte-2);
+}
+
+.pied {
+  margin-top: 18px;
+  color: var(--texte-2);
+  font-size: 12.5px;
   text-align: center;
 }
 
-.total-libelle {
-  margin: 0;
-  font-size: 0.8rem;
-  color: var(--texte-clair);
-}
+/* ---------- 6. Boutons ---------- */
 
-.total-montant {
-  margin: 4px 0 0;
-  font-size: 1.15rem;
-  font-weight: 700;
-}
-
-/* Le solde change de couleur selon son signe (la classe est
-   ajoutée par app.js). */
-.total-solde .total-montant.positif {
-  color: var(--couleur-revenu);
-}
-
-.total-solde .total-montant.negatif {
-  color: var(--couleur-depense);
-}
-
-/* ---------- 8. Liste des transactions ---------- */
-
-.resume-mois {
-  margin: 8px 0 4px;
-  font-size: 0.85rem;
-  color: var(--texte-clair);
-}
-
-.liste-transactions {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-/* Titre de journée dans l'historique. */
-.titre-jour {
-  padding: 14px 0 4px;
-  border-bottom: 1px solid var(--bordure);
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--texte-clair);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.transaction {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border-bottom: 1px solid #eef2f4;
-}
-
-/* Le corps de la ligne est lui-même un bouton : toucher la
-   ligne ouvre la modification. */
-.corps-transaction {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 0;
-  background: none;
-  border: none;
-  font: inherit;                  /* le bouton hérite de la police de la page */
-  text-align: left;
-  cursor: pointer;
-}
-
-/* Pastille ronde avec le signe +, − ou ⇄. */
-.t-sens {
-  flex-shrink: 0;
-  width: 34px;
-  height: 34px;
-  display: flex;
+.btn {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  font-weight: 700;
+  gap: 6px;
+  min-height: 46px;
+  padding: 10px 18px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 650;
 }
 
-.type-revenu { background: #e0f2e9; color: var(--couleur-revenu); }
-.type-depense { background: #fdecea; color: var(--couleur-depense); }
-.type-transfert { background: #e8edf1; color: var(--couleur-transfert); }
-
-.t-infos {
-  flex: 1;
-  min-width: 0;                   /* permet de couper les textes longs */
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
-.t-infos strong {
-  display: block;
-  font-size: 0.95rem;
+.btn .icone {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2.3;
 }
 
-.t-infos small {
-  color: var(--texte-clair);
-  font-size: 0.8rem;
+.btn-petit {
+  min-height: 40px;
+  padding: 8px 14px;
+  font-size: 14px;
 }
 
-.t-montant {
-  flex-shrink: 0;
-  font-weight: 700;
-  font-size: 0.95rem;
-  white-space: nowrap;
-}
+.btn-principal { background: var(--marque); color: #fff; }
+.btn-principal:hover { background: var(--marque-2); }
+.btn-secondaire { background: var(--surface); border-color: var(--bordure); color: var(--texte); }
+.btn-secondaire:hover { background: var(--surface-2); }
+.btn-danger { background: var(--sortie); color: #fff; }
 
-/* Même code couleur que les pastilles, pour les montants. */
-.t-montant.type-revenu { color: var(--couleur-revenu); }
-.t-montant.type-depense { color: var(--couleur-depense); }
-.t-montant.type-transfert { color: var(--couleur-transfert); }
-
-.bouton-supprimer {
-  flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: 8px;
+/* Actions secondaires des cartes : simple texte, moins de bruit. */
+.btn-texte {
+  border: 0;
   background: none;
-  color: var(--texte-clair);
-  font-size: 20px;
-  cursor: pointer;
-}
-
-.bouton-supprimer:hover {
-  background: #fdecea;
-  color: var(--couleur-depense);
-}
-
-/* ---------- 9. Formulaire en superposition ---------- */
-
-/* Voile sombre plein écran ; la carte du formulaire remonte
-   du bas sur téléphone, est centrée sur grand écran. */
-.voile {
-  position: fixed;
-  inset: 0;                       /* occupe tout l'écran */
-  z-index: 50;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  background: rgba(34, 48, 58, 0.5);
-}
-
-.voile-carte {
-  width: 100%;
-  max-width: 560px;
-  max-height: 92vh;               /* la carte ne dépasse jamais l'écran */
-  overflow-y: auto;               /* ...et défile si elle est trop haute */
-  background: var(--carte);
-  border-radius: 16px 16px 0 0;
-  padding: 20px;
-}
-
-.voile-carte h2 {
-  margin: 0 0 14px;
-}
-
-.champ {
-  margin-bottom: 12px;
-}
-
-.champ label {
-  display: block;
-  margin-bottom: 4px;
-  font-size: 0.85rem;
+  color: var(--texte-2);
   font-weight: 600;
 }
 
-.champ input,
-.champ select,
-.champ textarea {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--bordure);
-  border-radius: 8px;
-  background: #ffffff;
-  font: inherit;
-  font-size: 16px;                /* 16px évite le zoom automatique sur iOS */
+.btn-texte:hover {
+  background: var(--surface-2);
+  color: var(--texte);
 }
 
-/* Champs en erreur : bordure + fond très léger. */
-.champ.invalide input,
-.champ.invalide select,
-.champ.invalide textarea {
-  border-color: var(--couleur-depense);
-  background: #fff8f7;
+.actions-carte .btn-texte {
+  padding-left: 6px;
+  padding-right: 6px;
 }
 
-.message-erreur {
-  display: block;
-  margin-top: 4px;
-  font-size: 0.8rem;
-  color: var(--couleur-depense);
-}
-
-.obligatoire {
-  color: var(--couleur-depense);
-}
-
-.actions-formulaire {
+.rangee-boutons {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-  margin-top: 16px;
+  margin-top: 12px;
 }
 
-/* ---------- 9 bis. Rapports et paramètres ---------- */
+.rangee-boutons .btn {
+  flex: 1 1 140px;
+}
 
-/* Le tableau défile horizontalement sur petit écran au lieu
-   d'élargir toute la page. */
+.bouton-fichier {
+  cursor: pointer;
+}
+
+/* Puces de choix de période (rapports) */
+.choix-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  padding: 7px 13px;
+  border: 1px solid var(--bordure);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.chip.actif {
+  border-color: var(--marque);
+  background: var(--marque);
+  color: #fff;
+}
+
+.dates-rapport {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 12px;
+  color: var(--texte-2);
+  font-size: 14px;
+}
+
+/* ---------- 7. Rapports et paramètres ---------- */
+
+.grille-rapport {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.grille-rapport .carte h2 {
+  margin-bottom: 6px;
+  font-size: 1.02rem;
+}
+
 .tableau-defilant {
+  margin-top: 8px;
   overflow-x: auto;
-  margin: 0 -4px;
 }
 
 .tableau {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: 13.5px;
 }
 
 .tableau th,
 .tableau td {
   padding: 8px 6px;
-  border-bottom: 1px solid #eef2f4;
+  border-bottom: 1px solid var(--surface-2);
   text-align: left;
   vertical-align: top;
 }
 
-/* Titres de colonnes ; les titres de ligne (tbody th) restent normaux. */
 .tableau thead th {
-  color: var(--texte-clair);
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  color: var(--texte-2);
+  font-size: 12px;
+  font-weight: 650;
 }
 
-/* Colonnes de nombres alignées à droite, sans retour à la ligne. */
 .tableau tbody th {
   font-weight: 600;
 }
@@ -741,8 +1109,9 @@ main {
   white-space: nowrap;
 }
 
+.tableau tbody tr:last-child th,
 .tableau tbody tr:last-child td {
-  border-bottom: none;
+  border-bottom: 0;
 }
 
 .ligne-saisie {
@@ -760,76 +1129,359 @@ main {
 }
 
 .liste-categories {
-  list-style: none;
   margin: 0 0 12px;
   padding: 0;
+  list-style: none;
 }
 
 .liste-categories li {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   padding: 8px 0;
-  border-bottom: 1px solid #eef2f4;
+  border-bottom: 1px solid var(--surface-2);
 }
 
 .liste-categories .nom-categorie {
-  flex: 1 1 140px;
+  flex: 1;
+  min-width: 0;
 }
 
 .liste-categories .nom-categorie small {
   display: block;
-  color: var(--texte-clair);
+  color: var(--texte-2);
+  font-size: 12px;
 }
 
 .liste-categories .btn {
-  flex: 0 0 auto;
-  min-height: 36px;
+  min-height: 34px;
+  padding: 5px 10px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+/* ---------- 8. Formulaires en superposition ---------- */
+
+.voile {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(13, 24, 20, 0.45);
+}
+
+.voile-carte {
+  width: 100%;
+  max-width: 560px;
+  max-height: 92vh;
+  overflow-y: auto;
+  padding: 20px 18px calc(20px + env(safe-area-inset-bottom));
+  border-radius: 24px 24px 0 0;
+  background: var(--surface);
+  animation: montee 0.2s ease-out;
+}
+
+@keyframes montee {
+  from { transform: translateY(24px); opacity: 0.6; }
+  to { transform: none; opacity: 1; }
+}
+
+.voile-carte h2 {
+  margin-bottom: 16px;
+  font-size: 1.2rem;
+  font-weight: 750;
+}
+
+.feuille .actions-rapides {
+  margin: 0;
+}
+
+.champ {
+  margin-bottom: 12px;
+}
+
+.champ label {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--texte-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.champ input,
+.champ select,
+.champ textarea {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: var(--surface-2);
+  font-size: 16px;               /* 16 px : pas de zoom automatique sur iPhone */
+}
+
+.champ input:focus,
+.champ select:focus,
+.champ textarea:focus {
+  border-color: var(--marque-2);
+  background: var(--surface);
+  outline: none;
+}
+
+/* Le montant, champ principal, en grand. */
+#champ-montant,
+#cotisation-montant,
+#operation-montant {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.champ.invalide input,
+.champ.invalide select,
+.champ.invalide textarea {
+  border-color: var(--sortie);
+  background: #fff8f6;
+}
+
+.message-erreur {
+  display: block;
+  margin-top: 4px;
+  color: var(--sortie);
+  font-size: 12.5px;
+}
+
+.message-erreur:empty {
+  display: none;
+}
+
+.obligatoire {
+  color: var(--sortie);
+}
+
+.details-formulaire {
+  margin-bottom: 12px;
+}
+
+.details-formulaire summary {
+  margin-bottom: 10px;
+  color: var(--marque-2);
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.case-a-cocher {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  color: var(--texte) !important;
+  font-size: 15px !important;
+}
+
+.case-a-cocher input {
+  width: 20px !important;
+  height: 20px;
+}
+
+.actions-formulaire {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.actions-formulaire .btn {
+  flex: 1;
+}
+
+/* Bandeau "Annuler" après une saisie */
+.bandeau-annulation {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--hauteur-nav) + 16px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  padding: 10px 10px 10px 16px;
+  border-radius: 14px;
+  background: var(--texte);
+  color: #fff;
+  font-size: 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.bandeau-annulation button {
   padding: 6px 10px;
-  font-size: 0.85rem;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #a6ecd5;
+  font-weight: 700;
 }
 
-/* ---------- 10. Divers ---------- */
+/* ---------- 9. Ordinateur et tablette en paysage ---------- */
 
-.cache {
-  display: none !important;
+@media (min-width: 600px) {
+  .grille-cartes {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    align-items: start;
+  }
+
+  .grille-cartes > .vide {
+    grid-column: 1 / -1;
+  }
 }
 
-.pied {
-  padding: 20px 16px 32px;
-  text-align: center;
-  font-size: 0.8rem;
-  color: var(--texte-clair);
-}
-
-/* ---------- 11. Ajustements pour grand écran ---------- */
-
-@media (min-width: 700px) {
-  .entete {
-    padding: 28px 24px 16px;
+@media (min-width: 900px) {
+  /* Menu à gauche, contenu sur toute la largeur restante */
+  .app {
+    display: grid;
+    grid-template-columns: 248px minmax(0, 1fr);
+    min-height: 100vh;
   }
 
   .navigation {
-    padding: 10px 24px;
+    position: sticky;
+    top: 0;
+    bottom: auto;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 4px;
+    height: 100vh;
+    padding: 22px 14px;
+    border-top: 0;
+    border-right: 1px solid var(--bordure);
+    background: var(--surface);
+    backdrop-filter: none;
   }
 
-  main {
-    padding: 24px;
+  .marque {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 8px 22px;
+    font-size: 1.3rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
   }
 
-  /* Le formulaire devient une fenêtre centrée... */
+  .marque img {
+    border-radius: 9px;
+  }
+
+  .onglet {
+    flex: 0 0 auto;
+    flex-direction: row;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    font-size: 15px;
+  }
+
+  .onglet .icone {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    background: none !important;
+  }
+
+  .onglet:hover {
+    background: var(--surface-2);
+  }
+
+  .onglet.actif {
+    background: var(--marque-clair);
+  }
+
+  .navigation .nav-ajouter {
+    display: inline-flex;
+    margin-top: 18px;
+  }
+
+  .fab {
+    display: none;
+  }
+
+  /* Contenu centré dans l'espace à droite du menu : pas de vide d'un seul côté. */
+  .contenu {
+    width: 100%;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 28px 36px 48px;
+  }
+
+  .logo-mobile {
+    display: none;
+  }
+
+  .choix-periode {
+    margin-left: 0;
+  }
+
+  .btn-rond-clair {
+    margin-left: auto;
+  }
+
+  /* Accueil sur deux colonnes */
+  .accueil {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
+
+  .accueil-cote > .bloc:first-child {
+    margin-top: 0;
+  }
+
+  .solde {
+    padding: 22px 26px 24px;
+  }
+
+  .solde-montant {
+    font-size: 3rem;
+  }
+
+  .actions-rapides {
+    gap: 12px;
+  }
+
+  .entete-ecran h1 {
+    font-size: 1.8rem;
+  }
+
+  .segments {
+    max-width: 420px;
+  }
+
+  .menu {
+    max-width: 640px;
+  }
+
+  .grille-rapport {
+    grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
+    align-items: start;
+  }
+
   .voile {
     align-items: center;
     padding: 24px;
   }
 
   .voile-carte {
-    border-radius: 16px;
+    border-radius: 22px;
+    padding: 24px;
   }
 
-  /* ...et ses champs se placent sur deux colonnes.
-     Les champs "large" occupent toute la largeur. */
+  .bandeau-annulation {
+    bottom: 24px;
+  }
+
+  /* Formulaires sur deux colonnes */
   #formulaire-transaction,
   #formulaire-activite,
   #formulaire-budget,
@@ -840,7 +1492,7 @@ main {
   #formulaire-operation {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    column-gap: 16px;
+    column-gap: 14px;
   }
 
   .champ-large {

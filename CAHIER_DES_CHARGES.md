@@ -265,6 +265,13 @@ La première version est considérée utilisable si l'utilisateur peut :
 - Les exports CSV utilisent le séparateur « ; » et l'encodage UTF-8 pour Excel en français ; ils sont exclus du dépôt Git.
 - Le rappel de mise à jour apparaît dans les alertes de l'accueil ; les notifications du système ne sont pas gérées.
 
+### Interface (version 0.7)
+
+- Style « porte-monnaie mobile » : solde de la période en tête sur fond vert, actions rapides (dépense, revenu, transfert, cotisation), dernières opérations, puis alertes, objectifs, activités et investissements.
+- Téléphone : barre d'onglets en bas (Accueil, Opérations, Activités, Épargne, Plus) et bouton + flottant. Ordinateur : menu à gauche, contenu centré, accueil sur deux colonnes.
+- Budgets, Rapports et Paramètres sont regroupés dans « Plus » ; Objectifs et Investissements dans « Épargne ».
+- La suppression d'une opération se fait depuis son formulaire de modification.
+
 ### Catégories de dépenses par défaut (modifiables dans Paramètres)
 
 1. Transport

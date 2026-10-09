@@ -516,7 +516,73 @@ function versISO(date) {
   return date.getFullYear() + '-' + mois + '-' + jour;
 }
 
+/* Crée une icône du sprite placé en haut de index.html. */
+function icone(nom) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'icone');
+  svg.setAttribute('aria-hidden', 'true');
+  const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+  use.setAttribute('href', '#i-' + nom);
+  svg.appendChild(use);
+  return svg;
+}
+
+/* Nombre seul, sans devise : "45 000", "+42 500" si signe demandé. */
+function formaterNombre(nombre, signe) {
+  return (signe && nombre > 0 ? '+' : '') + nombre.toLocaleString('fr-FR');
+}
+
+/* Petits blocs de chiffres côte à côte : [{ libelle, valeur, classe }].
+   Les montants y sont écrits sans devise pour tenir sur un téléphone. */
+function construireStats(stats) {
+  const grille = document.createElement('div');
+  grille.className = 'stats';
+  stats.forEach(function (stat) {
+    const bloc = document.createElement('div');
+    bloc.className = 'stat' + (stat.classe ? ' ' + stat.classe : '');
+    const libelle = document.createElement('small');
+    libelle.textContent = stat.libelle;
+    const valeur = document.createElement('strong');
+    valeur.textContent = stat.valeur;
+    bloc.append(libelle, valeur);
+    grille.appendChild(bloc);
+  });
+  return grille;
+}
+
+/* Barre de progression accessible (pourcentage de 0 à 100). */
+function construireBarre(pourcentage, libelle, classe) {
+  const barre = document.createElement('div');
+  barre.className = 'barre-progression';
+  barre.setAttribute('role', 'progressbar');
+  barre.setAttribute('aria-label', libelle);
+  barre.setAttribute('aria-valuemin', '0');
+  barre.setAttribute('aria-valuemax', '100');
+  barre.setAttribute('aria-valuenow', String(Math.round(Math.min(100, pourcentage))));
+  const progression = document.createElement('span');
+  if (classe) progression.className = classe;
+  progression.style.width = Math.min(100, Math.max(0, pourcentage)) + '%';
+  barre.appendChild(progression);
+  return barre;
+}
+
+/* Classe de couleur d'un résultat : positif, négatif ou neutre. */
+function classeSigne(montant) {
+  return montant > 0 ? 'positif' : (montant < 0 ? 'negatif' : '');
+}
+
+/* "Aujourd'hui", "Hier" ou la date en toutes lettres. */
+function libelleJour(dateISO) {
+  const aujourdHui = aujourdhuiISO();
+  if (dateISO === aujourdHui) return 'Aujourd’hui';
+  if (dateISO === veille(aujourdHui)) return 'Hier';
+  return formaterDateLongue(dateISO);
+}
+
 /* ---------- 4. Navigation entre les écrans ---------- */
+
+/* Écrans rangés sous un même onglet de la barre de navigation. */
+const ONGLET_DE_ECRAN = { investissements: 'objectifs', budgets: 'plus', rapports: 'plus', parametres: 'plus' };
 
 /* Affiche l'écran demandé et masque les autres. */
 function afficherEcran(nom) {
@@ -528,8 +594,16 @@ function afficherEcran(nom) {
     cible.classList.add('actif');
   }
   /* L'onglet correspondant passe en surbrillance. */
-  document.querySelectorAll('.onglet').forEach(function (onglet) {
-    onglet.classList.toggle('actif', onglet.dataset.ecran === nom);
+  const onglet = ONGLET_DE_ECRAN[nom] || nom;
+  document.querySelectorAll('.onglet').forEach(function (bouton) {
+    const actif = bouton.dataset.ecran === onglet;
+    bouton.classList.toggle('actif', actif);
+    if (actif) bouton.setAttribute('aria-current', 'page'); else bouton.removeAttribute('aria-current');
+  });
+  document.querySelectorAll('.segment').forEach(function (segment) {
+    const actif = segment.dataset.ecran === nom;
+    segment.classList.toggle('actif', actif);
+    segment.setAttribute('aria-selected', String(actif));
   });
   window.scrollTo(0, 0); /* remonte en haut du nouvel écran */
 }
@@ -652,26 +726,27 @@ function construireCarteActivite(activite, compacte) {
     carte.appendChild(description);
   }
 
-  const reel = document.createElement('p');
-  reel.className = 'resume-financier';
-  reel.textContent = 'Revenus reçus : ' + formaterMontant(chiffres.revenus) +
-    ' · Dépenses payées : ' + formaterMontant(chiffres.depenses) +
-    ' · Résultat : ' + formaterMontant(chiffres.solde);
-  carte.appendChild(reel);
+  carte.appendChild(construireStats([
+    { libelle: 'Reçu', valeur: formaterNombre(chiffres.revenus) },
+    { libelle: 'Payé', valeur: formaterNombre(chiffres.depenses) },
+    { libelle: 'Résultat', valeur: formaterNombre(chiffres.solde, true), classe: classeSigne(chiffres.solde) }
+  ]));
 
   if (activite.budget !== null && activite.budget !== undefined) {
     const reste = activite.budget - chiffres.depenses;
+    const taux = activite.budget > 0 ? chiffres.depenses / activite.budget * 100 : 100;
+    carte.appendChild(construireBarre(taux, 'Budget utilisé de ' + activite.nom, reste < 0 ? 'progression-depassee' : (taux >= 80 ? 'progression-alerte' : '')));
     const budget = document.createElement('p');
     budget.className = reste < 0 ? 'texte-alerte' : 'note';
-    budget.textContent = 'Budget prévu : ' + formaterMontant(activite.budget) +
-      ' · ' + (reste >= 0 ? 'Reste ' + formaterMontant(reste) : 'Dépassement ' + formaterMontant(Math.abs(reste)));
+    budget.textContent = 'Budget ' + formaterMontant(activite.budget) + ' · ' +
+      (reste >= 0 ? 'reste ' + formaterMontant(reste) : 'dépassé de ' + formaterMontant(Math.abs(reste)));
     carte.appendChild(budget);
   }
 
   const previsions = [];
-  if (activite.revenuPrevu !== null && activite.revenuPrevu !== undefined) previsions.push('Revenu prévu : ' + formaterMontant(activite.revenuPrevu));
-  if (activite.depensesPrevues !== null && activite.depensesPrevues !== undefined) previsions.push('Dépenses prévues : ' + formaterMontant(activite.depensesPrevues));
-  if (activite.heures > 0) previsions.push('Résultat net par heure : ' + formaterMontant(Math.round(chiffres.solde / activite.heures)));
+  if (activite.revenuPrevu !== null && activite.revenuPrevu !== undefined) previsions.push('Revenu prévu ' + formaterMontant(activite.revenuPrevu));
+  if (activite.depensesPrevues !== null && activite.depensesPrevues !== undefined) previsions.push('dépenses prévues ' + formaterMontant(activite.depensesPrevues));
+  if (activite.heures > 0) previsions.push(formaterMontant(Math.round(chiffres.solde / activite.heures)) + ' par heure (' + activite.heures.toLocaleString('fr-FR') + ' h)');
   if (previsions.length) {
     const details = document.createElement('p');
     details.className = 'note';
@@ -684,12 +759,12 @@ function construireCarteActivite(activite, compacte) {
     actions.className = 'actions-carte';
     const modifier = document.createElement('button');
     modifier.type = 'button';
-    modifier.className = 'btn btn-secondaire';
+    modifier.className = 'btn btn-texte';
     modifier.textContent = 'Modifier';
     modifier.addEventListener('click', function () { ouvrirFormulaireActivite(activite.id); });
     const supprimer = document.createElement('button');
     supprimer.type = 'button';
-    supprimer.className = 'btn btn-secondaire';
+    supprimer.className = 'btn btn-texte';
     supprimer.textContent = 'Supprimer';
     supprimer.addEventListener('click', function () { supprimerActivite(activite.id); });
     actions.append(modifier, supprimer);
@@ -706,18 +781,44 @@ function rendreActivites() {
   for (const activite of donnees.activites) liste.appendChild(construireCarteActivite(activite, false));
 }
 
+/* Ligne de résumé de l'accueil : nom, valeur à droite, barre facultative.
+   Toucher la ligne ouvre l'écran détaillé. */
+function construireLigneResume(nom, valeur, ecran, barre) {
+  const ligne = document.createElement('button');
+  ligne.type = 'button';
+  ligne.className = 'ligne-resume';
+  const haut = document.createElement('span');
+  haut.className = 'ligne-resume-haut';
+  const titre = document.createElement('strong');
+  titre.textContent = nom;
+  const droite = document.createElement('span');
+  droite.textContent = valeur;
+  haut.append(titre, droite);
+  ligne.appendChild(haut);
+  if (barre) ligne.appendChild(barre);
+  ligne.addEventListener('click', function () { afficherEcran(ecran); });
+  return ligne;
+}
+
+function messageVide(texte) {
+  const note = document.createElement('p');
+  note.className = 'vide';
+  note.textContent = texte;
+  return note;
+}
+
 function rendreResumeActivites() {
   const conteneur = document.getElementById('resume-activites');
   conteneur.replaceChildren();
-  const actives = donnees.activites.filter(function (activite) { return activite.statut === 'encours'; }).slice(0, 3);
+  const actives = donnees.activites.filter(function (activite) { return activite.statut === 'encours'; }).slice(0, 4);
   if (!actives.length) {
-    const note = document.createElement('p');
-    note.className = 'note';
-    note.textContent = 'Aucune activité marquée « En cours ».';
-    conteneur.appendChild(note);
+    conteneur.appendChild(messageVide('Aucune activité en cours.'));
     return;
   }
-  for (const activite of actives) conteneur.appendChild(construireCarteActivite(activite, true));
+  for (const activite of actives) {
+    const chiffres = totauxActivite(activite.id);
+    conteneur.appendChild(construireLigneResume(activite.nom, 'Résultat ' + formaterEcart(chiffres.solde), 'activites', null));
+  }
 }
 
 function moisAlertesTableau() {
@@ -780,15 +881,16 @@ function rendreAlertesBudget() {
   for (const budget of alertesBudget) {
     const utilise = depensesBudget(budget);
     const li = document.createElement('li');
-    li.textContent = nomPorteeBudget(budget) + ' : ' + formaterMontant(utilise) + ' dépensés sur ' +
-      formaterMontant(budget.montant) + (utilise > budget.montant ? ' — budget dépassé.' : ' — seuil de ' + budget.seuil + ' % atteint.');
+    const portee = budget.type === 'categorie' ? 'Budget ' + budget.categorie : (budget.type === 'activite' ? 'Budget ' + nomActivite(budget.activiteId) : 'Budget global');
+    li.textContent = portee + ' : ' + formaterMontant(utilise) + ' sur ' +
+      formaterMontant(budget.montant) + (utilise > budget.montant ? ', budget dépassé.' : ', seuil de ' + budget.seuil + ' % atteint.');
     liste.appendChild(li);
   }
   for (const activite of alertesActivite) {
     const depenses = totauxActivite(activite.id).depenses;
     const li = document.createElement('li');
-    li.textContent = 'Activité « ' + activite.nom + ' » : ' + formaterMontant(depenses) + ' dépensés pour un budget prévu de ' +
-      formaterMontant(activite.budget) + ' — dépassement de ' + formaterMontant(depenses - activite.budget) + '.';
+    li.textContent = 'Activité « ' + activite.nom + ' » : budget de ' + formaterMontant(activite.budget) +
+      ' dépassé de ' + formaterMontant(depenses - activite.budget) + '.';
     liste.appendChild(li);
   }
   for (const objectif of alertesObjectif) {
@@ -804,6 +906,13 @@ function rendreAlertesBudget() {
     li.textContent = 'Objectif « ' + objectif.nom + ' » : ' + messages.join(' ; ') + '.';
     liste.appendChild(li);
   }
+  /* Chaque alerte reçoit son icône ; le bloc disparaît s'il est vide. */
+  liste.querySelectorAll('li').forEach(function (li) {
+    const texte = document.createElement('span');
+    texte.textContent = li.textContent;
+    li.replaceChildren(icone('alerte'), texte);
+  });
+  document.getElementById('bloc-alertes').hidden = nombreAlertes === 0 && Boolean(mois);
 }
 
 function rendreBudgets() {
@@ -850,12 +959,12 @@ function rendreBudgets() {
     actions.className = 'actions-carte';
     const modifier = document.createElement('button');
     modifier.type = 'button';
-    modifier.className = 'btn btn-secondaire';
+    modifier.className = 'btn btn-texte';
     modifier.textContent = 'Modifier';
     modifier.addEventListener('click', function () { ouvrirFormulaireBudget(budget.id); });
     const supprimer = document.createElement('button');
     supprimer.type = 'button';
-    supprimer.className = 'btn btn-secondaire';
+    supprimer.className = 'btn btn-texte';
     supprimer.textContent = 'Supprimer';
     supprimer.addEventListener('click', function () { supprimerBudget(budget.id); });
     actions.append(modifier, supprimer);
@@ -943,25 +1052,25 @@ function estimationObjectif(objectif) {
 function texteEstimationObjectif(objectif) {
   const estimation = estimationObjectif(objectif);
   if (!estimation) return '';
-  const rythme = 'Au rythme actuel (environ ' + formaterMontant(estimation.parPeriode) + ' par ' +
+  const rythme = 'À ton rythme actuel (' + formaterMontant(estimation.parPeriode) + ' par ' +
     (objectif.frequence === 'hebdomadaire' ? 'semaine' : 'mois') + ')';
-  if (!estimation.date) return rythme + ', la cible ne serait pas atteinte avant plus de 50 ans.';
+  if (!estimation.date) return rythme + ' : plus de 50 ans.';
   const tropTard = objectif.dateCible && estimation.date > objectif.dateCible;
-  return rythme + ', la cible serait atteinte vers le ' + formaterDateCourte(estimation.date) +
+  return rythme + ' : vers le ' + formaterDateCourte(estimation.date) +
     (tropTard ? ', après la date souhaitée.' : '.');
 }
 
 function resumeRythmeObjectif(objectif) {
   const restant = montantRestantObjectif(objectif);
-  if (restant === 0) return 'Objectif atteint : tu as déjà mis de côté le montant cible.';
+  if (restant === 0) return 'Montant cible atteint.';
   const rappel = cotisationEnRetard(objectif) ? ' La cotisation prévue semble en retard.' : '';
-  if (!objectif.dateCible) return 'Ajoute une date souhaitée pour calculer le montant à cotiser par période.' + rappel;
+  if (!objectif.dateCible) return 'Ajoute une date souhaitée pour connaître le rythme à tenir.' + rappel;
   const enRetard = objectif.dateCible < aujourdhuiISO();
   const periodes = periodesRestantesObjectif(objectif);
   const montant = Math.ceil(restant / periodes);
   const frequence = objectif.frequence === 'hebdomadaire' ? 'semaine' : 'mois';
-  return (enRetard ? 'Date souhaitée dépassée. ' : '') + 'Pour atteindre la cible, prévois environ ' +
-    formaterMontant(montant) + ' par ' + frequence + ' sur ' + periodes + (periodes > 1 ? ' périodes.' : ' période.') + rappel;
+  return (enRetard ? 'Date souhaitée dépassée. ' : '') + 'À mettre de côté : ' +
+    formaterMontant(montant) + ' par ' + frequence + ' pendant ' + periodes + (periodes > 1 ? ' ' + (frequence === 'mois' ? 'mois' : 'semaines') + '.' : ' ' + frequence + '.') + rappel;
 }
 
 function construireCarteObjectif(objectif, compacte) {
@@ -983,42 +1092,34 @@ function construireCarteObjectif(objectif, compacte) {
   carte.appendChild(entete);
 
   const chiffres = document.createElement('p');
-  chiffres.className = 'resume-financier';
-  chiffres.textContent = formaterMontant(cotise) + ' mis de côté sur ' + formaterMontant(objectif.cible) +
-    ' · reste ' + formaterMontant(restant) + ' · ' + pourcentage + ' %';
+  chiffres.className = 'montant-principal';
+  chiffres.textContent = formaterMontant(cotise) + ' ';
+  const sur = document.createElement('small');
+  sur.textContent = 'sur ' + formaterMontant(objectif.cible);
+  chiffres.appendChild(sur);
   carte.appendChild(chiffres);
 
-  const barre = document.createElement('div');
-  barre.className = 'barre-progression';
-  barre.setAttribute('role', 'progressbar');
-  barre.setAttribute('aria-label', 'Progression de ' + objectif.nom);
-  barre.setAttribute('aria-valuemin', '0');
-  barre.setAttribute('aria-valuemax', '100');
-  barre.setAttribute('aria-valuenow', String(pourcentage));
-  const progression = document.createElement('span');
-  progression.style.width = pourcentage + '%';
-  barre.appendChild(progression);
-  carte.appendChild(barre);
+  carte.appendChild(construireBarre(pourcentage, 'Progression de ' + objectif.nom, ''));
 
-  const details = document.createElement('p');
-  details.className = 'note';
-  details.textContent = (objectif.dateCible ? 'Souhaité pour le ' + formaterDateCourte(objectif.dateCible) + ' · ' : '') +
-    (objectif.reserve ? 'Réserve : ' + objectif.reserve + ' · ' : '') + resumeRythmeObjectif(objectif);
-  carte.appendChild(details);
+  const etat = document.createElement('p');
+  etat.className = 'note';
+  etat.textContent = pourcentage + ' % · reste ' + formaterMontant(restant) +
+    (objectif.dateCible ? ' · pour le ' + formaterDateCourte(objectif.dateCible) : '') +
+    (objectif.reserve ? ' · ' + objectif.reserve : '');
+  carte.appendChild(etat);
 
-  const estimation = texteEstimationObjectif(objectif);
-  if (estimation) {
-    const ligneEstimation = document.createElement('p');
-    ligneEstimation.className = 'note';
-    ligneEstimation.textContent = estimation;
-    carte.appendChild(ligneEstimation);
-  }
-
-  if (objectif.montantInitial > 0) {
-    const initial = document.createElement('p');
-    initial.className = 'note';
-    initial.textContent = 'Déjà mis de côté avant le suivi : ' + formaterMontant(objectif.montantInitial) + '.';
-    carte.appendChild(initial);
+  if (objectif.statut === 'encours') {
+    const details = document.createElement('p');
+    details.className = 'note';
+    details.textContent = resumeRythmeObjectif(objectif);
+    carte.appendChild(details);
+    const estimation = texteEstimationObjectif(objectif);
+    if (estimation) {
+      const ligneEstimation = document.createElement('p');
+      ligneEstimation.className = estimation.indexOf('après la date souhaitée') >= 0 ? 'texte-alerte' : 'note';
+      ligneEstimation.textContent = estimation;
+      carte.appendChild(ligneEstimation);
+    }
   }
 
   if (objectif.achat) {
@@ -1033,10 +1134,16 @@ function construireCarteObjectif(objectif, compacte) {
     const historique = document.createElement('details');
     historique.className = 'historique-cotisations';
     const titreHistorique = document.createElement('summary');
-    titreHistorique.textContent = 'Historique des cotisations (' + objectif.cotisations.length + ')';
+    titreHistorique.textContent = 'Cotisations (' + objectif.cotisations.length + ')';
     historique.appendChild(titreHistorique);
     const liste = document.createElement('ul');
     liste.className = 'liste-simple';
+    if (objectif.montantInitial > 0) {
+      const initial = document.createElement('li');
+      initial.className = 'ligne-cotisation';
+      initial.textContent = 'Au départ · ' + formaterMontant(objectif.montantInitial);
+      liste.appendChild(initial);
+    }
     objectif.cotisations.slice().sort(function (a, b) { return b.date.localeCompare(a.date) || b.creeLe - a.creeLe; }).forEach(function (cotisation) {
       const ligne = document.createElement('li');
       ligne.className = 'ligne-cotisation';
@@ -1070,19 +1177,19 @@ function construireCarteObjectif(objectif, compacte) {
     const achat = document.createElement('button');
     achat.type = 'button';
     achat.className = 'btn btn-secondaire';
-    achat.textContent = 'Achat effectué';
+    achat.textContent = 'Acheté';
     achat.addEventListener('click', function () { ouvrirFormulaireAchat(objectif.id); });
     actions.appendChild(achat);
   }
   const modifier = document.createElement('button');
   modifier.type = 'button';
-  modifier.className = 'btn btn-secondaire';
+  modifier.className = 'btn btn-texte';
   modifier.textContent = 'Modifier';
   modifier.addEventListener('click', function () { ouvrirFormulaireObjectif(objectif.id); });
   actions.appendChild(modifier);
   const supprimer = document.createElement('button');
   supprimer.type = 'button';
-  supprimer.className = 'btn btn-secondaire';
+  supprimer.className = 'btn btn-texte';
   supprimer.textContent = 'Supprimer';
   supprimer.addEventListener('click', function () { supprimerObjectif(objectif.id); });
   actions.appendChild(supprimer);
@@ -1108,18 +1215,22 @@ function rendreObjectifs() {
 
 function rendreResumeObjectifs() {
   const conteneur = document.getElementById('resume-objectifs');
-  const bouton = document.getElementById('btn-cotisation-rapide');
   conteneur.replaceChildren();
   const objectifs = objectifsEnCours().slice(0, 3);
-  bouton.disabled = objectifsEnCours().length === 0;
+  const aucun = objectifsEnCours().length === 0;
+  document.getElementById('btn-cotisation-rapide').disabled = aucun;
+  document.querySelectorAll('[data-action="cotiser"]').forEach(function (bouton) { bouton.disabled = aucun; });
   if (!objectifs.length) {
-    const note = document.createElement('p');
-    note.className = 'note';
-    note.textContent = 'Aucun objectif en cours.';
-    conteneur.appendChild(note);
+    conteneur.appendChild(messageVide('Aucun objectif en cours.'));
     return;
   }
-  objectifs.forEach(function (objectif) { conteneur.appendChild(construireCarteObjectif(objectif, true)); });
+  objectifs.forEach(function (objectif) {
+    const cotise = totalCotise(objectif);
+    const pourcentage = cotise / objectif.cible * 100;
+    conteneur.appendChild(construireLigneResume(objectif.nom,
+      formaterMontant(cotise) + ' / ' + objectif.cible.toLocaleString('fr-FR'),
+      'objectifs', construireBarre(pourcentage, 'Progression de ' + objectif.nom, '')));
+  });
 }
 
 function ouvrirFormulaireObjectif(id) {
@@ -1408,13 +1519,11 @@ function construireCarteInvestissement(investissement) {
     carte.appendChild(ligne);
   }
 
-  const chiffres = document.createElement('p');
-  chiffres.className = 'resume-financier';
-  chiffres.textContent = 'Apports : ' + formaterMontant(bilan.apports) + ' · ' + (bilan.valeur === null
-    ? 'Valeur estimée : non saisie'
-    : 'Valeur estimée : ' + formaterMontant(bilan.valeur) + ' au ' + formaterDateCourte(bilan.dateValeur) +
-      ' · Écart estimé : ' + formaterEcart(bilan.ecart));
-  carte.appendChild(chiffres);
+  carte.appendChild(construireStats([
+    { libelle: 'Apports', valeur: formaterNombre(bilan.apports) },
+    { libelle: bilan.valeur === null ? 'Valeur' : 'Valeur au ' + formaterDateCourte(bilan.dateValeur).slice(0, 5), valeur: bilan.valeur === null ? '—' : formaterNombre(bilan.valeur) },
+    { libelle: 'Écart estimé', valeur: bilan.ecart === null ? '—' : formaterNombre(bilan.ecart, true), classe: bilan.ecart === null ? '' : classeSigne(bilan.ecart) }
+  ]));
 
   const complement = document.createElement('p');
   complement.className = 'note';
@@ -1471,12 +1580,12 @@ function construireCarteInvestissement(investissement) {
   }
   const modifier = document.createElement('button');
   modifier.type = 'button';
-  modifier.className = 'btn btn-secondaire';
+  modifier.className = 'btn btn-texte';
   modifier.textContent = 'Modifier';
   modifier.addEventListener('click', function () { ouvrirFormulaireInvestissement(investissement.id); });
   const supprimer = document.createElement('button');
   supprimer.type = 'button';
-  supprimer.className = 'btn btn-secondaire';
+  supprimer.className = 'btn btn-texte';
   supprimer.textContent = 'Supprimer';
   supprimer.addEventListener('click', function () { supprimerInvestissement(investissement.id); });
   actions.append(modifier, supprimer);
@@ -1501,10 +1610,18 @@ function rendreInvestissements() {
 
 function rendreResumeInvestissements() {
   const conteneur = document.getElementById('resume-investissements');
-  const texte = document.createElement('p');
-  texte.className = 'note';
-  texte.textContent = texteTotauxInvestissements() || 'Aucun investissement actif.';
-  conteneur.replaceChildren(texte);
+  conteneur.replaceChildren();
+  const actifs = donnees.investissements.filter(function (i) { return i.statut === 'actif'; });
+  if (!actifs.length) {
+    conteneur.appendChild(messageVide('Aucun investissement actif.'));
+    return;
+  }
+  actifs.slice(0, 3).forEach(function (investissement) {
+    const bilan = bilanInvestissement(investissement, '');
+    conteneur.appendChild(construireLigneResume(investissement.nom,
+      bilan.valeur === null ? formaterMontant(bilan.apports) + ' placés' : formaterMontant(bilan.valeur) + ' (' + formaterEcart(bilan.ecart) + ')',
+      'investissements', null));
+  });
 }
 
 function ouvrirFormulaireInvestissement(id) {
@@ -2026,15 +2143,16 @@ function exporterRapportCSV() {
 function rendreTableauDeBord() {
   const resume = totaux(transactionsDeLaPeriode());
 
-  document.getElementById('total-revenus').textContent = formaterMontant(resume.revenus);
-  document.getElementById('total-depenses').textContent = formaterMontant(resume.depenses);
+  document.getElementById('total-revenus').textContent = formaterNombre(resume.revenus);
+  document.getElementById('total-depenses').textContent = formaterNombre(resume.depenses);
 
-  const elementSolde = document.getElementById('total-solde');
   /* Le "+" n'est écrit que pour un solde positif ; le signe "-"
-   est déjà ajouté automatiquement par le formatage des nombres. */
-  elementSolde.textContent = (resume.solde > 0 ? '+' : '') + formaterMontant(resume.solde);
-  elementSolde.classList.toggle('positif', resume.solde > 0);
-  elementSolde.classList.toggle('negatif', resume.solde < 0);
+     est déjà ajouté automatiquement par le formatage des nombres.
+     La devise est affichée plus petite que le montant. */
+  const devise = document.createElement('span');
+  devise.className = 'devise';
+  devise.textContent = donnees.reglages.devise;
+  document.getElementById('total-solde').replaceChildren((resume.solde > 0 ? '+' : '') + resume.solde.toLocaleString('fr-FR'), devise);
 
   /* Libellé de la période, sous les boutons de choix. */
   const bornes = bornesPeriode();
@@ -2053,10 +2171,30 @@ function rendreTableauDeBord() {
   }
 
   document.getElementById('libelle-periode').textContent = libelle;
+  rendreOperationsRecentes();
   rendreAlertesBudget();
   rendreResumeActivites();
   rendreResumeObjectifs();
   rendreResumeInvestissements();
+}
+
+/* Les six dernières opérations saisies, toutes périodes confondues. */
+function rendreOperationsRecentes() {
+  const ul = document.getElementById('liste-recentes');
+  ul.replaceChildren();
+  const recentes = donnees.transactions.slice().sort(comparerTransactions).slice(0, 6);
+  document.getElementById('recentes-vides').hidden = recentes.length > 0;
+  let jourPrecedent = '';
+  recentes.forEach(function (tr) {
+    if (tr.date !== jourPrecedent) {
+      jourPrecedent = tr.date;
+      const titre = document.createElement('li');
+      titre.className = 'titre-jour';
+      titre.textContent = libelleJour(tr.date);
+      ul.appendChild(titre);
+    }
+    ul.appendChild(construireLigne(tr));
+  });
 }
 
 /* ---------- 10. Écran Transactions ---------- */
@@ -2114,11 +2252,11 @@ function rendreTransactions() {
   const resume = totaux(liste);
 
   /* Résumé du mois affiché. */
-  let texte = 'Revenus : ' + formaterMontant(resume.revenus) +
-    ' · Dépenses : ' + formaterMontant(resume.depenses) +
-    ' · Solde : ' + (resume.solde > 0 ? '+' : '') + formaterMontant(resume.solde);
+  let texte = 'Entrées ' + formaterMontant(resume.revenus) +
+    ' · Sorties ' + formaterMontant(resume.depenses) +
+    ' · Solde ' + (resume.solde > 0 ? '+' : '') + formaterMontant(resume.solde);
   if (resume.transferts > 0) {
-    texte += ' · Transferts internes : ' + formaterMontant(resume.transferts) + ' (non comptés dans le solde)';
+    texte += ' · Transferts ' + formaterMontant(resume.transferts) + ' (hors solde)';
   }
   document.getElementById('resume-mois').textContent = texte;
 
@@ -2140,69 +2278,55 @@ function rendreTransactions() {
       jourPrecedent = tr.date;
       const titre = document.createElement('li');
       titre.className = 'titre-jour';
-      titre.textContent = formaterDateLongue(tr.date);
+      titre.textContent = libelleJour(tr.date);
       ul.appendChild(titre);
     }
     ul.appendChild(construireLigne(tr));
   }
 }
 
-/* Construit une ligne de l'historique pour une transaction. */
+/* Construit une ligne de l'historique : icône, libellé, détails,
+   montant signé. Toucher la ligne ouvre la modification (la
+   suppression se fait depuis ce formulaire). textContent affiche
+   les textes saisis tels quels, sans jamais les interpréter. */
 function construireLigne(tr) {
   const li = document.createElement('li');
-  li.className = 'transaction';
+  li.className = 'operation type-' + tr.type;
 
-  /* Libellés selon le type. */
-  const signe = tr.type === 'revenu' ? '+' : (tr.type === 'depense' ? '−' : '⇄');
   const libelleType = tr.type === 'revenu' ? 'Revenu' : (tr.type === 'depense' ? 'Dépense' : 'Transfert interne');
-
-  /* Détail affiché en petit : type, catégorie, activité liée. */
   const objectifAffiche = nomObjectif(tr.objectifId);
-  const details = [libelleType, tr.categorie, nomActivite(tr.activiteId), objectifAffiche ? 'Objectif : ' + objectifAffiche : '']
-    .filter(function (partie) { return partie !== '' && partie !== undefined; })
-    .join(' · ');
-  const detailsTransfert = tr.type === 'transfert' && (tr.source || tr.destination)
-    ? ' · ' + (tr.source || 'Origine inconnue') + ' → ' + (tr.destination || 'Destination inconnue')
-    : '';
+  const titreTexte = tr.note || tr.categorie || libelleType;
+  const details = [tr.note ? tr.categorie : '', nomActivite(tr.activiteId), objectifAffiche ? 'Objectif ' + objectifAffiche : '']
+    .filter(function (partie) { return partie; });
+  if (tr.type === 'transfert') {
+    details.unshift((tr.source || 'Origine inconnue') + ' → ' + (tr.destination || 'Destination inconnue'));
+  }
+  if (!details.length) details.push(libelleType);
 
-  /* Le corps de la ligne est un bouton : le toucher ouvre la
-     modification. textContent affiche les textes saisis tels quels,
-     sans jamais les interpréter comme du HTML. */
   const corps = document.createElement('button');
   corps.type = 'button';
-  corps.className = 'corps-transaction';
-  corps.title = 'Modifier cette transaction';
+  corps.className = 'corps-operation';
+  corps.setAttribute('aria-label', libelleType + ' de ' + formaterMontant(tr.montant) + ', ' + titreTexte + ', le ' + formaterDateCourte(tr.date) + '. Modifier');
 
-  const sens = document.createElement('span');
-  sens.className = 't-sens type-' + tr.type;
-  sens.textContent = signe;
+  const pastille = document.createElement('span');
+  pastille.className = 'op-icone';
+  pastille.appendChild(icone(tr.type === 'revenu' ? 'entree' : (tr.type === 'depense' ? 'sortie' : 'transfert')));
 
   const infos = document.createElement('span');
-  infos.className = 't-infos';
+  infos.className = 'op-infos';
   const titre = document.createElement('strong');
-  titre.textContent = tr.note || libelleType;
+  titre.textContent = titreTexte;
   const sousTitre = document.createElement('small');
-  sousTitre.textContent = details + detailsTransfert;
+  sousTitre.textContent = details.join(' · ');
   infos.append(titre, sousTitre);
 
   const montant = document.createElement('span');
-  montant.className = 't-montant type-' + tr.type;
+  montant.className = 'op-montant';
   montant.textContent = (tr.type === 'revenu' ? '+' : (tr.type === 'depense' ? '−' : '')) + formaterMontant(tr.montant);
 
-  corps.append(sens, infos, montant);
+  corps.append(pastille, infos, montant);
   corps.addEventListener('click', function () { ouvrirFormulaire('modification', tr.id); });
   li.appendChild(corps);
-
-  /* Petit bouton "×" pour supprimer, à droite de la ligne. */
-  const supprimer = document.createElement('button');
-  supprimer.type = 'button';
-  supprimer.className = 'bouton-supprimer';
-  supprimer.textContent = '×';
-  supprimer.title = 'Supprimer cette transaction';
-  supprimer.setAttribute('aria-label', 'Supprimer la transaction du ' + formaterDateCourte(tr.date));
-  supprimer.addEventListener('click', function () { supprimerTransaction(tr.id); });
-  li.appendChild(supprimer);
-
   return li;
 }
 
@@ -2272,7 +2396,7 @@ function ouvrirFormulaire(mode, id) {
     document.getElementById('champ-source').value = tr.source || '';
     document.getElementById('champ-destination').value = tr.destination || '';
 
-    titre.textContent = 'Modifier la transaction';
+    titre.textContent = 'Modifier l’opération';
     boutonSupprimer.hidden = false;
   } else {
     reinitialiserFormulaire();
@@ -2284,7 +2408,7 @@ function ouvrirFormulaire(mode, id) {
       revenu: 'Ajouter un revenu',
       transfert: 'Ajouter un transfert interne'
     };
-    titre.textContent = titres[mode] || 'Ajouter une transaction';
+    titre.textContent = titres[mode] || 'Nouvelle opération';
     boutonSupprimer.hidden = true;
   }
 
@@ -2513,7 +2637,7 @@ function enregistrerFormulaire() {
     return;
   }
   fermerFormulaire();
-  proposerAnnulation(avantModification, modeFormulaire === 'modification' ? 'Transaction modifiée.' : 'Transaction ajoutée.');
+  proposerAnnulation(avantModification, modeFormulaire === 'modification' ? 'Opération modifiée.' : 'Opération ajoutée.');
 
   /* Le filtre saute sur le mois de la transaction enregistrée,
      pour que la saisie soit visible immédiatement. */
@@ -2550,7 +2674,7 @@ function supprimerTransaction(id) {
     return;
   }
   fermerFormulaire();
-  proposerAnnulation(avantSuppression, 'Transaction supprimée.');
+  proposerAnnulation(avantSuppression, 'Opération supprimée.');
   rendreTout();
 }
 
@@ -3019,19 +3143,28 @@ function installerEcouteurs() {
      data-ouvrir contient 'depense', 'revenu' ou 'transfert'. */
   document.querySelectorAll('[data-ouvrir]').forEach(function (bouton) {
     bouton.addEventListener('click', function () {
+      document.getElementById('voile-feuille').classList.add('cache');
       ouvrirFormulaire(bouton.dataset.ouvrir, null);
     });
   });
 
   /* Choix de la période du tableau de bord. */
-  document.querySelectorAll('[data-periode]').forEach(function (chip) {
-    chip.addEventListener('click', function () {
-      document.querySelectorAll('[data-periode]').forEach(function (c) { c.classList.remove('actif'); });
-      chip.classList.add('actif');
-      periode.mode = chip.dataset.periode;
-      /* Les deux dates ne s'affichent qu'en mode personnalisé. */
-      document.getElementById('dates-personnalisees').classList.toggle('cache', periode.mode !== 'perso');
-      rendreTableauDeBord();
+  document.getElementById('choix-periode').addEventListener('change', function (e) {
+    periode.mode = e.target.value;
+    /* Les deux dates ne s'affichent qu'en mode personnalisé. */
+    document.getElementById('dates-personnalisees').classList.toggle('cache', periode.mode !== 'perso');
+    rendreTableauDeBord();
+  });
+
+  /* Bouton + : feuille de choix du type d'opération. */
+  const feuille = document.getElementById('voile-feuille');
+  document.querySelectorAll('[data-action="feuille"]').forEach(function (bouton) {
+    bouton.addEventListener('click', function () { feuille.classList.remove('cache'); });
+  });
+  document.querySelectorAll('[data-action="cotiser"]').forEach(function (bouton) {
+    bouton.addEventListener('click', function () {
+      feuille.classList.add('cache');
+      ouvrirFormulaireCotisation(null);
     });
   });
 

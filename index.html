@@ -2,8 +2,8 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0e6e5c">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b4f42">
   <title>Cap — suivi des activités et des finances</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="cap.svg" type="image/svg+xml">
@@ -13,251 +13,302 @@
 </head>
 <body>
 
-  <!-- En-tête : nom de l'application + accès aux paramètres -->
-  <header class="entete">
-    <div>
-      <h1>Cap</h1>
-      <p class="sous-titre">Suivi des activités et des finances</p>
-    </div>
-    <button type="button" id="btn-parametres" class="btn-icone" title="Paramètres" aria-label="Paramètres">⚙</button>
-  </header>
+  <!-- Icônes : dessinées une fois ici, réutilisées avec <use href="#i-..."> -->
+  <svg class="sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="i-accueil" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9v11.5h13V9"/><path d="M10 20.5v-6h4v6"/></symbol>
+    <symbol id="i-operations" viewBox="0 0 24 24"><path d="M7 4 3 8l4 4"/><path d="M3 8h13"/><path d="m17 12 4 4-4 4"/><path d="M21 16H8"/></symbol>
+    <symbol id="i-activites" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M8.5 7V5.5A2.5 2.5 0 0 1 11 3h2a2.5 2.5 0 0 1 2.5 2.5V7"/><path d="M3 13h18"/></symbol>
+    <symbol id="i-epargne" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/></symbol>
+    <symbol id="i-plus-menu" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></symbol>
+    <symbol id="i-ajouter" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-sortie" viewBox="0 0 24 24"><path d="M7 17 17 7"/><path d="M9 7h8v8"/></symbol>
+    <symbol id="i-entree" viewBox="0 0 24 24"><path d="M17 7 7 17"/><path d="M15 17H7V9"/></symbol>
+    <symbol id="i-transfert" viewBox="0 0 24 24"><path d="M7 4 3 8l4 4"/><path d="M3 8h13"/><path d="m17 12 4 4-4 4"/><path d="M21 16H8"/></symbol>
+    <symbol id="i-cotiser" viewBox="0 0 24 24"><circle cx="9" cy="9" r="6"/><path d="M14.5 9.6a6 6 0 1 1-5 8.9"/><path d="M9 6.5v5"/></symbol>
+    <symbol id="i-reglages" viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></symbol>
+    <symbol id="i-budget" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="14" rx="2.5"/><path d="M3 10.5h18"/><path d="M15.5 15h2"/><path d="M6 6V4.5h12V6"/></symbol>
+    <symbol id="i-rapport" viewBox="0 0 24 24"><path d="M4 20V11"/><path d="M10 20V5"/><path d="M16 20v-7"/><path d="M21 20H3"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+    <symbol id="i-retour" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></symbol>
+    <symbol id="i-alerte" viewBox="0 0 24 24"><path d="M12 3.5 2.5 20h19L12 3.5z"/><path d="M12 10v4.5"/><circle cx="12" cy="17.2" r=".6"/></symbol>
+    <symbol id="i-sauvegarde" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v3h16v-3"/></symbol>
+  </svg>
 
-  <!-- Navigation : une barre d'onglets, défilable sur petit écran -->
-  <nav class="navigation" aria-label="Navigation principale">
-    <button type="button" class="onglet actif" data-ecran="accueil">Accueil</button>
-    <button type="button" class="onglet" data-ecran="transactions">Transactions</button>
-    <button type="button" class="onglet" data-ecran="activites">Activités</button>
-    <button type="button" class="onglet" data-ecran="budgets">Budgets</button>
-    <button type="button" class="onglet" data-ecran="objectifs">Objectifs</button>
-    <button type="button" class="onglet" data-ecran="investissements">Investissements</button>
-    <button type="button" class="onglet" data-ecran="rapports">Rapports</button>
-  </nav>
+  <div class="app">
 
-  <main>
+    <!-- Navigation : barre en bas sur téléphone, colonne à gauche sur ordinateur -->
+    <nav class="navigation" aria-label="Navigation principale">
+      <div class="marque"><img src="cap.svg" alt="" width="32" height="32"><span>Cap</span></div>
+      <button type="button" class="onglet actif" data-ecran="accueil"><svg class="icone"><use href="#i-accueil"/></svg><span>Accueil</span></button>
+      <button type="button" class="onglet" data-ecran="transactions"><svg class="icone"><use href="#i-operations"/></svg><span>Opérations</span></button>
+      <button type="button" class="onglet" data-ecran="activites"><svg class="icone"><use href="#i-activites"/></svg><span>Activités</span></button>
+      <button type="button" class="onglet" data-ecran="objectifs"><svg class="icone"><use href="#i-epargne"/></svg><span>Épargne</span></button>
+      <button type="button" class="onglet" data-ecran="plus"><svg class="icone"><use href="#i-plus-menu"/></svg><span>Plus</span></button>
+      <button type="button" class="btn btn-principal nav-ajouter" data-action="feuille"><svg class="icone"><use href="#i-ajouter"/></svg>Nouvelle opération</button>
+    </nav>
 
-    <div id="alerte-stockage" class="carte alerte-stockage" role="alert" hidden></div>
+    <main class="contenu">
 
-    <!-- ============ ÉCRAN 1 : ACCUEIL / TABLEAU DE BORD ============ -->
-    <section id="ecran-accueil" class="ecran actif">
+      <div id="alerte-stockage" class="bandeau bandeau-erreur" role="alert" hidden></div>
 
-      <!-- Rappel : les données ne vivent que sur cet appareil -->
-      <div id="rappel-sauvegarde" class="carte rappel-sauvegarde cache" role="status">
-        <p id="rappel-sauvegarde-texte"></p>
-        <button type="button" class="btn btn-secondaire" id="btn-rappel-exporter">Exporter une sauvegarde</button>
-      </div>
+      <!-- ============ ACCUEIL ============ -->
+      <section id="ecran-accueil" class="ecran actif">
+        <div class="accueil">
 
-      <!-- Ajout rapide : gros boutons accessibles au doigt -->
-      <div class="ajout-rapide">
-        <button type="button" class="btn btn-depense" data-ouvrir="depense">− Dépense</button>
-        <button type="button" class="btn btn-revenu" data-ouvrir="revenu">+ Revenu</button>
-        <button type="button" class="btn" id="btn-cotisation-rapide">Cotisation</button>
-      </div>
-      <p class="note">Une cotisation est une somme affectée à un objectif ; elle n'est pas comptée comme une dépense.</p>
+          <div class="accueil-principal">
+            <!-- Solde de la période, façon carte de porte-monnaie -->
+            <section class="solde" aria-labelledby="titre-solde">
+              <div class="solde-haut">
+                <span class="logo-mobile">Cap</span>
+                <label class="choix-periode">
+                  <span class="sr-only">Période affichée</span>
+                  <select id="choix-periode">
+                    <option value="mois">Ce mois-ci</option>
+                    <option value="moisPrecedent">Mois précédent</option>
+                    <option value="perso">Dates au choix</option>
+                  </select>
+                </label>
+                <button type="button" id="btn-parametres" class="btn-rond-clair" aria-label="Paramètres"><svg class="icone"><use href="#i-reglages"/></svg></button>
+              </div>
+              <div id="dates-personnalisees" class="dates-solde cache">
+                <label>Du <input type="date" id="date-debut"></label>
+                <label>au <input type="date" id="date-fin"></label>
+              </div>
+              <p id="titre-solde" class="solde-libelle">Solde net · <span id="libelle-periode"></span></p>
+              <p id="total-solde" class="solde-montant">0 FCFA</p>
+              <div class="solde-flux">
+                <div><span class="flux-icone flux-entree"><svg class="icone"><use href="#i-entree"/></svg></span><span><small>Entrées</small><strong id="total-revenus">0 FCFA</strong></span></div>
+                <div><span class="flux-icone flux-sortie"><svg class="icone"><use href="#i-sortie"/></svg></span><span><small>Sorties</small><strong id="total-depenses">0 FCFA</strong></span></div>
+              </div>
+            </section>
 
-      <!-- Choix de la période affichée -->
-      <div class="carte">
-        <h2>Période</h2>
-        <div class="choix-periode">
-          <button type="button" class="chip actif" data-periode="mois">Mois en cours</button>
-          <button type="button" class="chip" data-periode="moisPrecedent">Mois précédent</button>
-          <button type="button" class="chip" data-periode="perso">Personnalisée</button>
+            <!-- Actions rapides -->
+            <div class="actions-rapides">
+              <button type="button" data-ouvrir="depense"><span class="pastille pastille-sortie"><svg class="icone"><use href="#i-sortie"/></svg></span>Dépense</button>
+              <button type="button" data-ouvrir="revenu"><span class="pastille pastille-entree"><svg class="icone"><use href="#i-entree"/></svg></span>Revenu</button>
+              <button type="button" data-ouvrir="transfert"><span class="pastille"><svg class="icone"><use href="#i-transfert"/></svg></span>Transfert</button>
+              <button type="button" id="btn-cotisation-rapide"><span class="pastille pastille-epargne"><svg class="icone"><use href="#i-cotiser"/></svg></span>Cotiser</button>
+            </div>
+
+            <div id="rappel-sauvegarde" class="bandeau bandeau-attention cache" role="status">
+              <svg class="icone"><use href="#i-sauvegarde"/></svg>
+              <p id="rappel-sauvegarde-texte"></p>
+              <button type="button" class="lien" id="btn-rappel-exporter">Sauvegarder</button>
+            </div>
+
+            <section class="bloc">
+              <div class="bloc-titre"><h2>Dernières opérations</h2><button type="button" class="lien" data-ecran="transactions">Tout voir</button></div>
+              <ul id="liste-recentes" class="liste-operations"></ul>
+              <p id="recentes-vides" class="vide">Aucune opération pour l'instant.</p>
+            </section>
+          </div>
+
+          <div class="accueil-cote">
+            <section class="bloc" id="bloc-alertes">
+              <div class="bloc-titre"><h2>Alertes</h2></div>
+              <ul id="alertes-budget" class="liste-alertes"></ul>
+              <p id="alertes-vides" class="vide">Aucune alerte.</p>
+            </section>
+
+            <section class="bloc">
+              <div class="bloc-titre"><h2>Objectifs</h2><button type="button" class="lien" data-ecran="objectifs">Tout voir</button></div>
+              <div id="resume-objectifs"></div>
+            </section>
+
+            <section class="bloc">
+              <div class="bloc-titre"><h2>Activités en cours</h2><button type="button" class="lien" data-ecran="activites">Tout voir</button></div>
+              <div id="resume-activites"></div>
+            </section>
+
+            <section class="bloc">
+              <div class="bloc-titre"><h2>Investissements</h2><button type="button" class="lien" data-ecran="investissements">Tout voir</button></div>
+              <div id="resume-investissements"></div>
+            </section>
+          </div>
         </div>
-        <div id="dates-personnalisees" class="dates-personnalisees cache">
-          <label>Du <input type="date" id="date-debut"></label>
-          <label>au <input type="date" id="date-fin"></label>
-        </div>
-        <p id="libelle-periode" class="libelle-periode"></p>
-      </div>
+      </section>
 
-      <!-- Totaux de la période -->
-      <div class="grille-totaux">
-        <div class="carte total">
-          <p class="total-libelle">Revenus reçus</p>
-          <p class="total-montant" id="total-revenus">0 FCFA</p>
-        </div>
-        <div class="carte total">
-          <p class="total-libelle">Dépenses payées</p>
-          <p class="total-montant" id="total-depenses">0 FCFA</p>
-        </div>
-        <div class="carte total total-solde">
-          <p class="total-libelle">Solde net</p>
-          <p class="total-montant" id="total-solde">0 FCFA</p>
-        </div>
-      </div>
-
-      <div class="carte">
-        <h2>Alertes</h2>
-        <ul id="alertes-budget" class="liste-simple"></ul>
-        <p id="alertes-vides" class="note">Aucune alerte de budget pour cette période.</p>
-      </div>
-
-      <div class="carte">
-        <h2>Activités en cours</h2>
-        <div id="resume-activites"></div>
-        <button type="button" class="btn btn-secondaire" data-ecran="activites">Voir les activités</button>
-      </div>
-
-      <div class="carte">
-        <div class="ligne-flex"><h2>Objectifs d'épargne</h2><button type="button" class="btn btn-secondaire" data-ecran="objectifs">Voir les objectifs</button></div>
-        <div id="resume-objectifs"></div>
-      </div>
-
-      <div class="carte">
-        <div class="ligne-flex"><h2>Investissements</h2><button type="button" class="btn btn-secondaire" data-ecran="investissements">Voir les investissements</button></div>
-        <div id="resume-investissements"></div>
-      </div>
-    </section>
-
-    <!-- ============ ÉCRAN 2 : TRANSACTIONS ============ -->
-    <section id="ecran-transactions" class="ecran">
-      <div class="ajout-rapide">
-        <button type="button" class="btn btn-depense" data-ouvrir="depense">− Dépense</button>
-        <button type="button" class="btn btn-revenu" data-ouvrir="revenu">+ Revenu</button>
-        <button type="button" class="btn" data-ouvrir="transfert">⇄ Transfert</button>
-      </div>
-
-      <div class="carte">
-        <div class="ligne-flex">
-          <h2>Historique</h2>
-          <select id="filtre-mois" aria-label="Filtrer par mois"></select>
-        </div>
+      <!-- ============ OPÉRATIONS ============ -->
+      <section id="ecran-transactions" class="ecran">
+        <header class="entete-ecran">
+          <h1>Opérations</h1>
+          <select id="filtre-mois" class="select-compact" aria-label="Mois affiché"></select>
+        </header>
         <p id="resume-mois" class="resume-mois"></p>
-        <ul id="liste-transactions" class="liste-transactions"></ul>
-        <p id="transactions-vide" class="vide">Aucune transaction pour ce mois. Utilise les boutons ci-dessus pour enregistrer une dépense ou un revenu.</p>
-      </div>
-    </section>
+        <section class="bloc">
+          <ul id="liste-transactions" class="liste-operations"></ul>
+          <p id="transactions-vide" class="vide">Aucune opération ce mois-ci.</p>
+        </section>
+      </section>
 
-    <!-- ============ ÉCRAN 3 : ACTIVITÉS ============ -->
-    <section id="ecran-activites" class="ecran">
-      <div class="carte">
-        <div class="ligne-flex">
-          <div><h2>Activités et projets</h2><p class="note">Relie les transactions à une activité pour suivre son résultat réel.</p></div>
-          <button type="button" id="btn-nouvelle-activite" class="btn btn-principal">+ Nouvelle activité</button>
-        </div>
-        <div id="liste-activites" class="liste-cartes"></div>
-        <p id="activites-vides" class="vide">Aucune activité. Crée par exemple « Génie civil » ou « Soutien scolaire ».</p>
-      </div>
-    </section>
+      <!-- ============ ACTIVITÉS ============ -->
+      <section id="ecran-activites" class="ecran">
+        <header class="entete-ecran">
+          <h1>Activités</h1>
+          <button type="button" id="btn-nouvelle-activite" class="btn btn-principal btn-petit"><svg class="icone"><use href="#i-ajouter"/></svg>Nouvelle</button>
+        </header>
+        <div id="liste-activites" class="grille-cartes"></div>
+        <p id="activites-vides" class="vide">Aucune activité. Crée par exemple « Soutien scolaire » puis relie-lui tes opérations.</p>
+      </section>
 
-    <!-- ============ ÉCRAN 4 : BUDGETS ET ALERTES ============ -->
-    <section id="ecran-budgets" class="ecran">
-      <div class="carte">
-        <div class="ligne-flex">
-          <div><h2>Budgets et alertes</h2><p class="note">Les dépenses sont comparées au seuil pour le mois choisi.</p></div>
-          <button type="button" id="btn-nouveau-budget" class="btn btn-principal">+ Nouveau budget</button>
+      <!-- ============ ÉPARGNE : OBJECTIFS ============ -->
+      <section id="ecran-objectifs" class="ecran">
+        <header class="entete-ecran">
+          <h1>Épargne</h1>
+          <button type="button" class="btn btn-principal btn-petit" id="btn-nouvel-objectif"><svg class="icone"><use href="#i-ajouter"/></svg>Objectif</button>
+        </header>
+        <div class="segments" role="tablist">
+          <button type="button" class="segment actif" data-ecran="objectifs" role="tab" aria-selected="true">Objectifs</button>
+          <button type="button" class="segment" data-ecran="investissements" role="tab" aria-selected="false">Investissements</button>
         </div>
+        <div id="liste-objectifs" class="grille-cartes"></div>
+        <p id="objectifs-vides" class="vide">Aucun objectif. Indique ce que tu veux acheter ou financer.</p>
+      </section>
+
+      <!-- ============ ÉPARGNE : INVESTISSEMENTS ============ -->
+      <section id="ecran-investissements" class="ecran">
+        <header class="entete-ecran">
+          <h1>Épargne</h1>
+          <button type="button" id="btn-nouvel-investissement" class="btn btn-principal btn-petit"><svg class="icone"><use href="#i-ajouter"/></svg>Investissement</button>
+        </header>
+        <div class="segments" role="tablist">
+          <button type="button" class="segment" data-ecran="objectifs" role="tab" aria-selected="false">Objectifs</button>
+          <button type="button" class="segment actif" data-ecran="investissements" role="tab" aria-selected="true">Investissements</button>
+        </div>
+        <p id="totaux-investissements" class="resume-mois"></p>
+        <div id="liste-investissements" class="grille-cartes"></div>
+        <p id="investissements-vides" class="vide">Aucun investissement. Ajoute une tontine, un terrain, un élevage…</p>
+      </section>
+
+      <!-- ============ PLUS ============ -->
+      <section id="ecran-plus" class="ecran">
+        <header class="entete-ecran"><h1>Plus</h1></header>
+        <nav class="menu" aria-label="Autres écrans">
+          <button type="button" data-ecran="budgets"><span class="pastille"><svg class="icone"><use href="#i-budget"/></svg></span><span><strong>Budgets</strong><small>Plafonds mensuels et alertes</small></span><svg class="icone chevron"><use href="#i-chevron"/></svg></button>
+          <button type="button" data-ecran="rapports"><span class="pastille"><svg class="icone"><use href="#i-rapport"/></svg></span><span><strong>Rapports</strong><small>Bilans par période, export CSV</small></span><svg class="icone chevron"><use href="#i-chevron"/></svg></button>
+          <button type="button" data-ecran="parametres"><span class="pastille"><svg class="icone"><use href="#i-reglages"/></svg></span><span><strong>Paramètres</strong><small>Sauvegarde, catégories, devise</small></span><svg class="icone chevron"><use href="#i-chevron"/></svg></button>
+        </nav>
+        <p class="pied">Cap 0.7 · données enregistrées sur cet appareil uniquement</p>
+      </section>
+
+      <!-- ============ BUDGETS ============ -->
+      <section id="ecran-budgets" class="ecran">
+        <header class="entete-ecran">
+          <button type="button" class="btn-retour" data-ecran="plus" aria-label="Retour"><svg class="icone"><use href="#i-retour"/></svg></button>
+          <h1>Budgets</h1>
+          <button type="button" id="btn-nouveau-budget" class="btn btn-principal btn-petit"><svg class="icone"><use href="#i-ajouter"/></svg>Budget</button>
+        </header>
         <label class="filtre-mois-budget">Mois <input type="month" id="mois-budget"></label>
-        <div id="liste-budgets" class="liste-cartes"></div>
+        <div id="liste-budgets" class="grille-cartes"></div>
         <p id="budgets-vides" class="vide">Aucun budget pour ce mois.</p>
-      </div>
-    </section>
+      </section>
 
-    <!-- ============ ÉCRAN 5 : OBJECTIFS D'ÉPARGNE (étape 4 du plan) ============ -->
-    <section id="ecran-objectifs" class="ecran">
-      <div class="carte">
-        <div class="ligne-flex"><div><h2>Objectifs d'épargne</h2><p class="note">Suis ce que tu veux acheter, les sommes mises de côté et le rythme à tenir.</p></div><button type="button" class="btn btn-principal" id="btn-nouvel-objectif">+ Nouvel objectif</button></div>
-        <div id="liste-objectifs" class="liste-cartes"></div>
-        <p id="objectifs-vides" class="vide">Aucun objectif. Commence par indiquer ce que tu veux acheter ou financer.</p>
-      </div>
-    </section>
-
-    <!-- ============ ÉCRAN 6 : INVESTISSEMENTS ============ -->
-    <section id="ecran-investissements" class="ecran">
-      <div class="carte">
-        <div class="ligne-flex">
-          <div><h2>Investissements</h2><p class="note">Valeurs saisies à la main : les écarts affichés sont des estimations, pas des prévisions. Les apports ne sont pas comptés comme dépenses.</p></div>
-          <button type="button" id="btn-nouvel-investissement" class="btn btn-principal">+ Nouvel investissement</button>
-        </div>
-        <p id="totaux-investissements" class="resume-financier"></p>
-        <div id="liste-investissements" class="liste-cartes"></div>
-        <p id="investissements-vides" class="vide">Aucun investissement. Ajoute par exemple une tontine, un terrain, un élevage ou des actions.</p>
-      </div>
-    </section>
-
-    <!-- ============ ÉCRAN 7 : RAPPORTS ============ -->
-    <section id="ecran-rapports" class="ecran">
-      <div class="carte">
-        <h2>Rapports</h2>
-        <div class="choix-periode">
-          <button type="button" class="chip actif" data-raccourci="mois">Mois en cours</button>
-          <button type="button" class="chip" data-raccourci="moisPrecedent">Mois précédent</button>
-          <button type="button" class="chip" data-raccourci="annee">Cette année</button>
-          <button type="button" class="chip" data-raccourci="tout">Tout</button>
-        </div>
-        <div class="dates-personnalisees">
-          <label>Du <input type="date" id="rapport-debut"></label>
-          <label>au <input type="date" id="rapport-fin"></label>
-        </div>
-        <p id="rapport-erreur" class="message-erreur" aria-live="polite"></p>
-        <div class="actions-sauvegarde">
-          <button type="button" class="btn btn-secondaire" id="btn-csv-transactions">Exporter les transactions (CSV)</button>
-          <button type="button" class="btn btn-secondaire" id="btn-csv-rapport">Exporter ce rapport (CSV)</button>
-        </div>
-        <p class="note">Les fichiers CSV s'ouvrent dans Excel, LibreOffice ou Google Sheets. Ils contiennent tes données financières : garde-les en lieu sûr.</p>
-      </div>
-      <div id="contenu-rapport"></div>
-    </section>
-
-    <!-- ============ ÉCRAN 8 : PARAMÈTRES ============ -->
-    <section id="ecran-parametres" class="ecran">
-      <div class="carte">
-        <h2>Sauvegarde et restauration</h2>
-        <p>Les données restent sur cet appareil. Exporte régulièrement une sauvegarde JSON et conserve-la dans un endroit sûr.</p>
-        <div class="actions-sauvegarde">
-          <button type="button" class="btn btn-principal" id="btn-exporter">Exporter une sauvegarde</button>
-          <label class="btn btn-secondaire bouton-fichier" for="fichier-sauvegarde">Restaurer une sauvegarde</label>
-          <input type="file" id="fichier-sauvegarde" accept=".json,application/json" hidden>
-          <button type="button" class="btn btn-secondaire" id="btn-exporter-brut">Exporter le contenu brut du stockage</button>
-        </div>
-        <p id="etat-sauvegarde" class="note" aria-live="polite"></p>
-        <p id="derniere-sauvegarde" class="note"></p>
-        <p id="etat-stockage" class="note"></p>
-      </div>
-
-      <div class="carte">
-        <h2>Paramètres</h2>
-        <form id="formulaire-devise" class="champ" novalidate>
-          <label for="param-devise">Devise affichée</label>
-          <div class="ligne-saisie">
-            <input id="param-devise" type="text" maxlength="10" autocomplete="off">
-            <button type="submit" class="btn btn-secondaire">Enregistrer</button>
+      <!-- ============ RAPPORTS ============ -->
+      <section id="ecran-rapports" class="ecran">
+        <header class="entete-ecran">
+          <button type="button" class="btn-retour" data-ecran="plus" aria-label="Retour"><svg class="icone"><use href="#i-retour"/></svg></button>
+          <h1>Rapports</h1>
+        </header>
+        <section class="bloc">
+          <div class="choix-chips">
+            <button type="button" class="chip actif" data-raccourci="mois">Ce mois-ci</button>
+            <button type="button" class="chip" data-raccourci="moisPrecedent">Mois précédent</button>
+            <button type="button" class="chip" data-raccourci="annee">Cette année</button>
+            <button type="button" class="chip" data-raccourci="tout">Tout</button>
           </div>
-          <small class="message-erreur" id="erreur-devise"></small>
-          <p class="note">Seul le libellé change : les montants restent des nombres entiers, sans conversion.</p>
-        </form>
-        <div class="champ">
-          <label for="param-rappel">Rappel de mise à jour</label>
-          <select id="param-rappel">
-            <option value="0">Jamais</option>
-            <option value="1">Après 1 jour sans saisie</option>
-            <option value="3">Après 3 jours sans saisie</option>
-            <option value="7">Après 7 jours sans saisie</option>
-          </select>
-          <p class="note">Le rappel s'affiche dans les alertes de l'accueil. Les notifications du téléphone ne sont pas gérées dans cette version.</p>
-        </div>
-      </div>
-
-      <div class="carte">
-        <h2>Catégories</h2>
-        <ul id="liste-categories-parametres" class="liste-categories"></ul>
-        <form id="formulaire-categorie" class="champ" novalidate>
-          <label for="nouvelle-categorie">Nouvelle catégorie</label>
-          <div class="ligne-saisie">
-            <input id="nouvelle-categorie" type="text" maxlength="60" placeholder="ex : Loyer">
-            <button type="submit" class="btn btn-secondaire">Ajouter</button>
+          <div class="dates-rapport">
+            <label>Du <input type="date" id="rapport-debut"></label>
+            <label>au <input type="date" id="rapport-fin"></label>
           </div>
-          <small class="message-erreur" id="erreur-categorie-parametre"></small>
-        </form>
-      </div>
+          <p id="rapport-erreur" class="message-erreur" aria-live="polite"></p>
+          <div class="rangee-boutons">
+            <button type="button" class="btn btn-secondaire" id="btn-csv-transactions">Opérations en CSV</button>
+            <button type="button" class="btn btn-secondaire" id="btn-csv-rapport">Rapport en CSV</button>
+          </div>
+        </section>
+        <div id="contenu-rapport" class="grille-rapport"></div>
+      </section>
 
-      <div class="carte carte-danger">
-        <h2>Zone sensible</h2>
-        <p>Le bouton ci-dessous efface toutes les données enregistrées sur cet appareil. Cette action est définitive.</p>
-        <button type="button" class="btn btn-danger" id="btn-effacer-donnees">Effacer toutes les données</button>
-      </div>
-    </section>
+      <!-- ============ PARAMÈTRES ============ -->
+      <section id="ecran-parametres" class="ecran">
+        <header class="entete-ecran">
+          <button type="button" class="btn-retour" data-ecran="plus" aria-label="Retour"><svg class="icone"><use href="#i-retour"/></svg></button>
+          <h1>Paramètres</h1>
+        </header>
+        <div class="grille-cartes">
+          <section class="bloc">
+            <h2>Sauvegarde</h2>
+            <p id="derniere-sauvegarde" class="note"></p>
+            <div class="rangee-boutons">
+              <button type="button" class="btn btn-principal" id="btn-exporter">Exporter</button>
+              <label class="btn btn-secondaire bouton-fichier" for="fichier-sauvegarde">Restaurer</label>
+              <input type="file" id="fichier-sauvegarde" accept=".json,application/json" hidden>
+            </div>
+            <p id="etat-sauvegarde" class="note" aria-live="polite"></p>
+            <p id="etat-stockage" class="note"></p>
+            <button type="button" class="lien lien-discret" id="btn-exporter-brut">Exporter le contenu brut du stockage</button>
+          </section>
 
-  </main>
+          <section class="bloc">
+            <h2>Affichage et rappels</h2>
+            <form id="formulaire-devise" class="champ" novalidate>
+              <label for="param-devise">Devise affichée</label>
+              <div class="ligne-saisie">
+                <input id="param-devise" type="text" maxlength="10" autocomplete="off">
+                <button type="submit" class="btn btn-secondaire">OK</button>
+              </div>
+              <small class="message-erreur" id="erreur-devise"></small>
+            </form>
+            <div class="champ">
+              <label for="param-rappel">Me rappeler de saisir</label>
+              <select id="param-rappel">
+                <option value="0">Jamais</option>
+                <option value="1">Après 1 jour sans saisie</option>
+                <option value="3">Après 3 jours sans saisie</option>
+                <option value="7">Après 7 jours sans saisie</option>
+              </select>
+            </div>
+          </section>
+
+          <section class="bloc">
+            <h2>Catégories</h2>
+            <ul id="liste-categories-parametres" class="liste-categories"></ul>
+            <form id="formulaire-categorie" class="champ" novalidate>
+              <label for="nouvelle-categorie" class="sr-only">Nouvelle catégorie</label>
+              <div class="ligne-saisie">
+                <input id="nouvelle-categorie" type="text" maxlength="60" placeholder="Nouvelle catégorie">
+                <button type="submit" class="btn btn-secondaire">Ajouter</button>
+              </div>
+              <small class="message-erreur" id="erreur-categorie-parametre"></small>
+            </form>
+          </section>
+
+          <section class="bloc bloc-danger">
+            <h2>Effacer les données</h2>
+            <p class="note">Supprime définitivement tout ce qui est enregistré sur cet appareil.</p>
+            <button type="button" class="btn btn-danger" id="btn-effacer-donnees">Tout effacer</button>
+          </section>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Bouton flottant (téléphone) -->
+  <button type="button" class="fab" data-action="feuille" aria-label="Nouvelle opération"><svg class="icone"><use href="#i-ajouter"/></svg></button>
+
+  <!-- Choix du type d'opération -->
+  <section id="voile-feuille" class="voile cache" role="dialog" aria-modal="true" aria-label="Nouvelle opération">
+    <div class="voile-carte feuille">
+      <h2>Nouvelle opération</h2>
+      <div class="actions-rapides">
+        <button type="button" data-ouvrir="depense"><span class="pastille pastille-sortie"><svg class="icone"><use href="#i-sortie"/></svg></span>Dépense</button>
+        <button type="button" data-ouvrir="revenu"><span class="pastille pastille-entree"><svg class="icone"><use href="#i-entree"/></svg></span>Revenu</button>
+        <button type="button" data-ouvrir="transfert"><span class="pastille"><svg class="icone"><use href="#i-transfert"/></svg></span>Transfert</button>
+        <button type="button" data-action="cotiser"><span class="pastille pastille-epargne"><svg class="icone"><use href="#i-cotiser"/></svg></span>Cotiser</button>
+      </div>
+    </div>
+  </section>
 
   <!-- Bandeau d'annulation de la dernière saisie -->
   <div id="bandeau-annulation" class="bandeau-annulation cache" role="status" aria-live="polite">
@@ -265,14 +316,10 @@
     <button type="button" id="btn-annuler-derniere">Annuler</button>
   </div>
 
-  <footer class="pied">
-    <p>Cap — version 0.6 (étapes 1 à 6). Données enregistrées uniquement sur cet appareil ; pense à les sauvegarder.</p>
-  </footer>
-
   <!-- ============ FORMULAIRE DE TRANSACTION (superposition) ============ -->
   <section id="voile-formulaire" class="voile cache" role="dialog" aria-modal="true" aria-labelledby="titre-formulaire">
     <div class="voile-carte">
-      <h2 id="titre-formulaire">Ajouter une transaction</h2>
+      <h2 id="titre-formulaire">Nouvelle opération</h2>
 
       <form id="formulaire-transaction" novalidate>
 
@@ -326,20 +373,22 @@
           <small class="note" id="aide-objectif"></small>
         </div>
 
-        <div class="champ">
-          <label for="champ-moyen">Moyen de paiement</label>
-          <input type="text" id="champ-moyen" placeholder="ex : espèces, Mobile Money">
-        </div>
-
         <div class="champ champ-large">
-          <label for="champ-note">Note</label>
+          <label for="champ-note">Libellé</label>
           <input type="text" id="champ-note" placeholder="ex : taxi pour le cours de maths">
         </div>
 
-        <div class="champ champ-large">
-          <label for="champ-justificatif">Justificatif (référence ou lien)</label>
-          <input type="text" id="champ-justificatif">
-        </div>
+        <details class="details-formulaire champ-large">
+          <summary>Plus de détails</summary>
+          <div class="champ">
+            <label for="champ-moyen">Moyen de paiement</label>
+            <input type="text" id="champ-moyen" placeholder="ex : espèces, Mobile Money">
+          </div>
+          <div class="champ">
+            <label for="champ-justificatif">Justificatif (référence ou lien)</label>
+            <input type="text" id="champ-justificatif">
+          </div>
+        </details>
 
         <div class="actions-formulaire champ-large">
           <button type="button" class="btn btn-secondaire" id="btn-annuler">Annuler</button>
