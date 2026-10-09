@@ -265,6 +265,29 @@ La première version est considérée utilisable si l'utilisateur peut :
 - Les exports CSV utilisent le séparateur « ; » et l'encodage UTF-8 pour Excel en français ; ils sont exclus du dépôt Git.
 - Le rappel de mise à jour apparaît dans les alertes de l'accueil ; les notifications du système ne sont pas gérées.
 
+### Charte graphique (version 0.9)
+
+Logo : pièce de verre « CAP » au dégradé cyan → violet, avec barres montantes et flèche de croissance. Les icônes sont découpées dans l'image d'origine, fond transparent ; sur Android et iPhone, la pièce est posée sur l'indigo profond de l'application.
+
+| Rôle | Couleur | Usage |
+|---|---|---|
+| Cyan du logo | `#46dde6` | début du dégradé de marque |
+| Bleu du logo | `#4a8bc4` | milieu du dégradé |
+| Indigo du logo | `#4f58b6` | courbe du graphique |
+| Violet du logo | `#7b4fcf` | fin du dégradé, contour de focus |
+| Dégradé de marque | `#46dde6 → #4a8bc4 → #6a4fc4 → #7b3cbf` | bouton +, barres de progression, aire du graphique |
+| Dégradé sombre | `#1f3f8a → #33307f → #4e2a8e` | carte « Solde net » |
+| Indigo profond | `#1c1a4d` | menu, barre d'onglets, infobulles |
+| Cyan d'action | `#2fd3e0` (texte `#10123a`) | boutons principaux, onglet actif |
+| Violet des liens | `#5b47d1` | liens (« Tout voir ») |
+| Revenus | `#0a7f93` sur `#dbf7fa` | montants et icônes d'entrée |
+| Dépenses | `#d0453a` sur `#fde3df` | icônes de sortie, dépassements |
+| Épargne | `#6a45c9` sur `#eee8fc` | cotisations |
+| Attention | `#7a5200` sur `#fdf3d6` | alertes, rappel de sauvegarde |
+| Fond / blocs | `#f1f3fb` / `#ffffff` | arrière-plan et cartes |
+| Texte / secondaire | `#141a3a` / `#5c6385` | encre principale et secondaire |
+| Catégories (graphique) | `#14a3bd`, `#e0a019`, `#7a52cc`, `#e0603f`, autres `#9aa0bd` | cyan et violet du logo + ambre et corail, pour rester distinguables par les daltoniens |
+
 ### Interface (version 0.8)
 
 - Ordinateur : menu bleu nuit à gauche avec un accès direct à chaque écran (Paramètres en bas), contenu centré.
@@ -295,8 +318,9 @@ suivi-activites/
 ├── app.js                  <- logique : données, calculs, alertes
 ├── manifest.json           <- métadonnées d'installation PWA
 ├── service-worker.js       <- cache de l'interface hors ligne
-├── cap.svg                 <- icône de l'application
-├── icone-*.png             <- icônes PNG (192, 512, maskable) pour l'installation
+├── logo-96.png             <- logo (menu de l'application)
+├── favicon-48.png          <- icône de l'onglet du navigateur
+├── icone-*.png             <- icônes d'installation (192, 512, maskable)
 ├── apple-touch-icon.png    <- icône d'écran d'accueil sur iPhone
 ├── .gitignore              <- exclusions des fichiers personnels
 └── VERSIONNAGE_GIT.md      <- aide-mémoire des versions locales

@@ -1,11 +1,12 @@
-const CACHE_NAME = 'cap-shell-v11';
+const CACHE_NAME = 'cap-shell-v13';
 const APP_FILES = [
   './',
   './index.html',
   './style.css',
   './app.js',
   './manifest.json',
-  './cap.svg',
+  './logo-96.png',
+  './favicon-48.png',
   './icone-192.png',
   './icone-512.png',
   './icone-maskable-512.png',

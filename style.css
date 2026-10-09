@@ -1,5 +1,5 @@
 /* ============================================================
-   Cap — feuille de style (version 0.8)
+   Cap — feuille de style (version 0.9)
    Ordinateur (900 px et plus) : menu bleu nuit à gauche, contenu
    centré, tableau de bord en grille. Téléphone : barre d'onglets
    en bas et bouton + flottant. Aucun framework.
@@ -8,28 +8,36 @@
 /* ---------- 1. Couleurs et base ---------- */
 
 :root {
-  --fond: #eef3f8;              /* arrière-plan général */
+  /* Charte tirée du logo : cyan → bleu → indigo → violet. */
+  --logo-cyan: #46dde6;
+  --logo-bleu: #4a8bc4;
+  --logo-indigo: #4f58b6;
+  --logo-violet: #7b4fcf;
+  --degrade: linear-gradient(135deg, #46dde6 0%, #4a8bc4 45%, #6a4fc4 80%, #7b3cbf 100%);
+  --degrade-sombre: linear-gradient(135deg, #1f3f8a 0%, #33307f 55%, #4e2a8e 100%);
+
+  --fond: #f1f3fb;              /* arrière-plan général, gris lavande */
   --surface: #ffffff;           /* blocs et formulaires */
-  --surface-2: #f2f6fa;         /* champs, zones secondaires */
-  --bordure: #e1e8f0;
-  --texte: #0f1f33;
-  --texte-2: #5a6b80;           /* texte secondaire */
-  --nuit: #10284a;              /* menu et carte du solde */
-  --nuit-texte: #c3d1e4;
-  --accent: #14b8a6;            /* turquoise : boutons, onglet actif */
-  --accent-fonce: #0b8577;      /* turquoise lisible sur fond blanc */
-  --accent-clair: #d5f5f0;
-  --sur-accent: #082b33;        /* texte posé sur le turquoise */
-  --entree: #0f8f82;
-  --entree-fond: #d5f5f0;
-  --sortie: #d0453a;
+  --surface-2: #f4f5fc;         /* champs, zones secondaires */
+  --bordure: #e2e5f3;
+  --texte: #141a3a;             /* encre indigo très sombre */
+  --texte-2: #5c6385;           /* texte secondaire */
+  --nuit: #1c1a4d;              /* menu : indigo profond */
+  --nuit-texte: #c9cbef;
+  --accent: #2fd3e0;            /* cyan du logo : boutons, onglet actif */
+  --accent-fonce: #5b47d1;      /* violet lisible sur blanc : liens */
+  --accent-clair: #e3f9fb;
+  --sur-accent: #10123a;        /* texte posé sur le cyan */
+  --entree: #0a7f93;            /* revenus : cyan foncé (contraste 4,7:1) */
+  --entree-fond: #dbf7fa;
+  --sortie: #d0453a;            /* dépenses : rouge corail (sens universel) */
   --sortie-fond: #fde3df;
-  --epargne: #a86a12;
-  --epargne-fond: #fcefd6;
+  --epargne: #6a45c9;           /* objectifs, cotisations : violet */
+  --epargne-fond: #eee8fc;
   --attention: #7a5200;
   --attention-fond: #fdf3d6;
   --rayon: 16px;
-  --ombre: 0 1px 2px rgba(15, 31, 51, 0.04), 0 4px 14px rgba(15, 31, 51, 0.05);
+  --ombre: 0 1px 2px rgba(20, 26, 58, 0.04), 0 4px 14px rgba(20, 26, 58, 0.06);
   --hauteur-nav: 68px;
 }
 
@@ -71,7 +79,7 @@ button {
 }
 
 :focus-visible {
-  outline: 3px solid var(--accent);
+  outline: 3px solid var(--logo-violet);
   outline-offset: 2px;
 }
 
@@ -189,9 +197,9 @@ button {
   height: 56px;
   border: 0;
   border-radius: 18px;
-  background: var(--accent);
-  color: var(--sur-accent);
-  box-shadow: 0 8px 22px rgba(20, 184, 166, 0.4);
+  background: var(--degrade);
+  color: #fff;
+  box-shadow: 0 8px 22px rgba(91, 71, 209, 0.38);
 }
 
 .fab .icone {
@@ -382,7 +390,7 @@ button {
 /* Solde : carte sombre, toute la largeur sur téléphone */
 .kpi-solde {
   grid-column: 1 / -1;
-  background: var(--nuit);
+  background: var(--degrade-sombre);
   box-shadow: none;
 }
 
@@ -395,8 +403,8 @@ button {
   font-size: 1.6rem;
 }
 
-.kpi-solde .kpi-valeur.positif { color: #5eead4; }
-.kpi-solde .kpi-valeur.negatif { color: #ff9b8f; }
+.kpi-solde .kpi-valeur.positif { color: #7cf2f7; }
+.kpi-solde .kpi-valeur.negatif { color: #ffb0a6; }
 
 .grille-accueil {
   display: flex;
@@ -492,12 +500,12 @@ button {
   touch-action: pan-y;
 }
 
-.grille { stroke: #e7edf4; stroke-width: 1; }
-.axe-zero { stroke: #c5d0dc; stroke-width: 1; }
+.grille { stroke: #e8eaf6; stroke-width: 1; }
+.axe-zero { stroke: #c8cce3; stroke-width: 1; }
 .etiquette-axe { fill: var(--texte-2); font-size: 11px; }
-.aire { fill: var(--accent); opacity: 0.18; }
-.courbe { fill: none; stroke: var(--accent-fonce); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
-.point { fill: var(--accent-fonce); stroke: var(--surface); stroke-width: 2; }
+.aire { fill: url(#degrade-aire); }
+.courbe { fill: none; stroke: var(--logo-indigo); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.point { fill: var(--logo-indigo); stroke: var(--surface); stroke-width: 2; }
 .repere { stroke: var(--texte-2); stroke-width: 1; stroke-dasharray: 3 3; }
 
 .infobulle {
@@ -816,7 +824,7 @@ button {
 }
 
 .statut-encours,
-.statut-normal { background: var(--entree-fond); color: var(--accent-fonce); }
+.statut-normal { background: var(--entree-fond); color: var(--entree); }
 .statut-pause,
 .statut-idee,
 .statut-alerte { background: var(--attention-fond); color: var(--attention); }
@@ -834,7 +842,7 @@ button {
   margin-top: 10px;
   overflow: hidden;
   border-radius: 999px;
-  background: #e5ecf3;
+  background: #e8eaf6;
 }
 
 .ligne-resume .barre-progression {
@@ -845,7 +853,7 @@ button {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--accent);
+  background: linear-gradient(90deg, #46dde6, #4a8bc4 55%, #7b4fcf);
 }
 
 .barre-progression .progression-alerte { background: #e0a019; }
@@ -919,7 +927,7 @@ button {
   margin-bottom: 14px;
   padding: 4px;
   border-radius: 12px;
-  background: #e2e9f1;
+  background: #e6e8f6;
 }
 
 .segment {
@@ -936,7 +944,7 @@ button {
 .segment.actif {
   background: var(--surface);
   color: var(--texte);
-  box-shadow: 0 1px 3px rgba(15, 31, 51, 0.1);
+  box-shadow: 0 1px 3px rgba(20, 26, 58, 0.1);
 }
 
 .menu {
@@ -1027,7 +1035,7 @@ button {
 }
 
 .btn-principal { background: var(--accent); color: var(--sur-accent); }
-.btn-principal:hover { background: #2dd4bf; }
+.btn-principal:hover { background: #5fe3ec; }
 .btn-secondaire { background: var(--surface); border-color: var(--bordure); color: var(--texte); }
 .btn-secondaire:hover { background: var(--surface-2); }
 .btn-blanc { background: var(--surface); color: var(--texte); }
@@ -1111,7 +1119,7 @@ button {
   width: 52px;
   height: 52px;
   border-radius: 16px;
-  background: #e2e9f1;
+  background: #e6e8f6;
   color: var(--texte);
 }
 
@@ -1226,7 +1234,7 @@ button {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  background: rgba(10, 22, 40, 0.5);
+  background: rgba(16, 18, 58, 0.5);
 }
 
 .voile-carte {
@@ -1369,7 +1377,7 @@ button {
   border: 0;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.12);
-  color: #5eead4;
+  color: #7cf2f7;
   font-weight: 700;
 }
 
@@ -1484,15 +1492,9 @@ button {
     font-weight: 750;
   }
 
-  .marque-logo {
-    display: grid;
-    place-items: center;
-    width: 38px;
-    height: 38px;
-    border-radius: 11px;
-    background: var(--accent);
-    color: var(--sur-accent);
-    font-size: 1.1rem;
+  .marque img {
+    width: 40px;
+    height: 40px;
   }
 
   .onglet {
@@ -1520,6 +1522,7 @@ button {
   .onglet.actif {
     background: var(--accent);
     color: var(--sur-accent);
+    box-shadow: inset 4px 0 0 var(--logo-violet);
   }
 
   /* Le regroupement des onglets ne concerne que le téléphone. */

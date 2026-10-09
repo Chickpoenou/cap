@@ -2189,8 +2189,10 @@ function rendreTableauDeBord() {
    hors ligne. Couleurs des catégories vérifiées pour le daltonisme ;
    chaque part est aussi écrite en clair dans la légende. */
 const NS_SVG = 'http://www.w3.org/2000/svg';
-const COULEURS_CATEGORIES = ['#0f9e8f', '#e0a019', '#3f6fd1', '#e0603f'];
-const COULEUR_AUTRES = '#94a3b8';
+/* Cyan et violet du logo, complétés par l'ambre et le corail : deux
+   couleurs du logo seules (bleu, violet) se confondent pour un daltonien. */
+const COULEURS_CATEGORIES = ['#14a3bd', '#e0a019', '#7a52cc', '#e0603f'];
+const COULEUR_AUTRES = '#9aa0bd';
 
 function elementSvg(nom, attributs) {
   const element = document.createElementNS(NS_SVG, nom);
@@ -2266,6 +2268,14 @@ function rendreGraphiqueEvolution() {
   const svg = elementSvg('svg', { viewBox: '0 0 ' + largeur + ' ' + hauteur, width: largeur, height: hauteur, role: 'img',
     'aria-label': 'Solde cumulé du ' + formaterDateCourte(bornes.debut) + ' au ' + formaterDateCourte(fin) + ' : ' +
       formaterMontant(points[points.length - 1].solde) + ' à la fin.' });
+
+  const definitions = elementSvg('defs');
+  const degrade = elementSvg('linearGradient', { id: 'degrade-aire', x1: '0', y1: '0', x2: '1', y2: '1' });
+  [['0', '#46dde6', '0.32'], ['0.55', '#4a8bc4', '0.18'], ['1', '#7b4fcf', '0.14']].forEach(function (arret) {
+    degrade.appendChild(elementSvg('stop', { offset: arret[0], 'stop-color': arret[1], 'stop-opacity': arret[2] }));
+  });
+  definitions.appendChild(degrade);
+  svg.appendChild(definitions);
 
   /* Repères horizontaux discrets : maximum, zéro, minimum. Un repère
      trop proche d'un autre (moins de 14 px) est omis. */
