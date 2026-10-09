@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cap-shell-v14';
+const CACHE_NAME = 'cap-shell-v15';
 const APP_FILES = [
   './',
   './index.html',
@@ -13,13 +13,27 @@ const APP_FILES = [
   './apple-touch-icon.png'
 ];
 
+/* L'hébergeur (Render) passe par un CDN qui garde chaque fichier jusqu'à
+   5 minutes : juste après une mise à jour, il pourrait servir la nouvelle
+   page avec l'ancien script. Un paramètre unique dans l'adresse oblige à
+   reprendre la version actuelle du serveur ; la copie est rangée sous
+   l'adresse normale. */
+function versionServeur(adresse) {
+  const url = new URL(adresse, self.location.href);
+  url.searchParams.set('frais', Date.now());
+  return new Request(url.href, { cache: 'no-store' });
+}
+
 self.addEventListener('install', function (event) {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(function (cache) {
-        /* cache: 'reload' : copies prises sur le serveur, jamais dans
-           le cache HTTP du navigateur (qui peut être plus ancien). */
-        return cache.addAll(APP_FILES.map(function (fichier) { return new Request(fichier, { cache: 'reload' }); }));
+        return Promise.all(APP_FILES.map(function (fichier) {
+          return fetch(versionServeur(fichier)).then(function (reponse) {
+            if (!reponse.ok) throw new Error('Fichier introuvable : ' + fichier);
+            return cache.put(fichier, reponse);
+          });
+        }));
       })
       .then(function () { return self.skipWaiting(); })
   );
@@ -49,10 +63,10 @@ self.addEventListener('fetch', function (event) {
   const estFichierApplication = event.request.mode === 'navigate' ||
     ['script', 'style', 'manifest'].includes(event.request.destination);
   if (estFichierApplication) {
-    /* cache: 'no-cache' revérifie auprès du serveur : sans cela, le
-       navigateur peut mélanger une ancienne page et un nouveau script. */
+    /* Version actuelle du serveur, sans passer par le cache du CDN ni
+       celui du navigateur : page, script et style restent assortis. */
     event.respondWith(
-      fetch(event.request, { cache: 'no-cache' }).then(function (reponse) {
+      fetch(versionServeur(event.request.url)).then(function (reponse) {
         if (reponse.ok) {
           const copie = reponse.clone();
           caches.open(CACHE_NAME).then(function (cache) { cache.put(event.request, copie); });
