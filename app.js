@@ -2183,6 +2183,372 @@ function rendreTableauDeBord() {
   rendreResumeInvestissements();
 }
 
+/* ---------- 8 quater. Import de SMS Mobile Money (Moov Money) ---------- */
+
+/* Formats relevés sur de vrais SMS Moov Money (Bénin). L'analyse se
+   fait sur l'appareil ; l'utilisateur vérifie chaque ligne avant
+   l'enregistrement. Le montant retenu est celui de l'opération, jamais
+   celui du solde. */
+const DEBUTS_SMS = /^(vous |bravo|txn id|cher abonn|cher client|f[ée]licitations|votre |transaction)/i;
+const MONTANT_SMS = '(\\d{1,3}(?:[ .]\\d{3})+|\\d+)\\s*(?:FCFA|F\\s?CFA|XOF)';
+let analysesSMS = [];
+
+/* Retire les caractères invisibles que les téléphones glissent dans
+   les SMS copiés, et uniformise les espaces. */
+function nettoyerSMS(texte) {
+  return texte.replace(/[﻿​‌‍]/g, '').replace(/[  ]/g, ' ').replace(/[ \t]+/g, ' ').trim();
+}
+
+/* Un collage peut contenir plusieurs SMS : un message commence par une
+   formule connue (« Vous avez… », « Bravo ! », « Txn ID… ») ; les
+   autres lignes complètent le message précédent. */
+function decouperSMS(texte) {
+  const messages = [];
+  texte.split(/\r?\n/).map(nettoyerSMS).filter(Boolean).forEach(function (ligne) {
+    if (!messages.length || DEBUTS_SMS.test(ligne)) messages.push(ligne);
+    else messages[messages.length - 1] += ' ' + ligne;
+  });
+  return messages;
+}
+
+function lireMontantSMS(texte) {
+  return Number(texte.replace(/[ .]/g, ''));
+}
+
+/* 2290194817659 → ••59 : les numéros ne sont pas recopiés en clair. */
+function masquerNumeros(texte) {
+  return texte.replace(/\b(?:229)?\d{8,10}\b/g, function (numero) { return '••' + numero.slice(-2); });
+}
+
+function categorieExistante(nom) {
+  const categories = donnees.reglages.categories;
+  if (categories.includes(nom)) return nom;
+  return categories.includes('Divers') ? 'Divers' : (categories[0] || '');
+}
+
+/* Catégorie des frais : une catégorie contenant « frais » si elle existe. */
+function categorieFrais() {
+  const trouvee = donnees.reglages.categories.find(function (nom) { return /frais/i.test(nom); });
+  return trouvee || categorieExistante('Divers');
+}
+
+function analyserSMS(brut) {
+  const texte = nettoyerSMS(brut);
+  const r = { texte: texte, importer: false, raison: '', type: 'depense', montant: null, date: '', dateDevinee: false,
+    categorie: 'Divers', note: '', source: '', destination: '', frais: 0, fraisAjoutes: false, reference: '' };
+  const cherche = function (motif) { return texte.match(new RegExp(motif, 'i')); };
+  const ignorer = function (raison) { r.raison = raison; return r; };
+
+  const date = texte.match(/\ble\s+(\d{2})\/(\d{2})\/(\d{4})/i);
+  if (date) {
+    r.date = date[3] + '-' + date[2] + '-' + date[1];
+  } else {
+    r.date = aujourdhuiISO();
+    r.dateDevinee = true;
+  }
+  const reference = texte.match(/(?:r[ée]f(?:[ée]rence)?|txn\s*id)\s*:?\s*(\d{6,})/i);
+  if (reference) r.reference = reference[1];
+  const frais = texte.match(/(?:frais|commission)\s*(?:est de)?\s*:?\s*(\d[\d ]*?)\s*F/i);
+  if (frais) r.frais = lireMontantSMS(frais[1]);
+
+  let m;
+  if (/demande de paiement/i.test(texte)) {
+    return ignorer('Demande de paiement : rien n’a été débité. Ne la valide sur ton téléphone que si tu la reconnais.');
+  }
+  if (cherche('re[çc]u\\s+' + MONTANT_SMS + '\\s+de cr[ée]dit')) {
+    return ignorer('Crédit de communication reçu : pas d’argent sur ton compte.');
+  }
+  if ((m = cherche('re[çc]u un d[ée]p[ôo]t de\\s+' + MONTANT_SMS))) {
+    /* Dépôt chez un agent : ton propre argent passe des espèces au compte. */
+    const agent = texte.match(/de l['’]agent\s+(.+?)\s+\d{6,}/i);
+    r.type = 'transfert';
+    r.montant = lireMontantSMS(m[1]);
+    r.source = 'Espèces';
+    r.destination = 'Moov Money';
+    r.note = 'Dépôt chez un agent' + (agent ? ' ' + agent[1] : '');
+  } else if ((m = cherche('(?:retir[ée]|retrait de)\\s+' + MONTANT_SMS))) {
+    r.type = 'transfert';
+    r.montant = lireMontantSMS(m[1]);
+    r.source = 'Moov Money';
+    r.destination = 'Espèces';
+    r.note = 'Retrait';
+  } else if ((m = cherche('recharg[ée]\\s+' + MONTANT_SMS))) {
+    r.montant = lireMontantSMS(m[1]);
+    r.categorie = 'Internet et crédit';
+    r.note = 'Recharge de crédit';
+  } else if ((m = cherche('forfait([^.]*?)de\\s+' + MONTANT_SMS))) {
+    r.montant = lireMontantSMS(m[2]);
+    r.categorie = 'Internet et crédit';
+    r.note = ('Forfait ' + m[1]).trim();
+  } else if ((m = cherche('pay[ée]\\s+' + MONTANT_SMS + '\\s+au marchand\\s+(.+?)\\s+(?:\\d{6,}\\s+)?pour'))) {
+    r.montant = lireMontantSMS(m[1]);
+    r.note = 'Paiement ' + m[2];
+  } else if ((m = cherche('pay[ée]\\s+' + MONTANT_SMS))) {
+    r.montant = lireMontantSMS(m[1]);
+    r.note = 'Paiement';
+  } else if ((m = cherche('transf[ée]r[ée]\\s+' + MONTANT_SMS + '\\s+(?:au|à|a)\\s+([^.]+)'))) {
+    r.montant = lireMontantSMS(m[1]);
+    r.note = 'Transfert vers ' + m[2].split(' - ').pop().trim();
+  } else if ((m = cherche('envoy[ée]\\s+' + MONTANT_SMS + '\\s+(?:au|à|a)\\s+(\\S+)'))) {
+    r.montant = lireMontantSMS(m[1]);
+    r.note = 'Envoi au ' + m[2];
+  } else if ((m = cherche('re[çc]u\\s+' + MONTANT_SMS + '(?:\\s+(?:de|du)\\s+(.+?))?(?:\\s+le\\s|\\.|$)'))) {
+    r.type = 'revenu';
+    r.montant = lireMontantSMS(m[1]);
+    r.note = 'Reçu' + (m[2] ? ' de ' + m[2] : '');
+  } else {
+    return ignorer(cherche(MONTANT_SMS) ? 'Message non reconnu : saisis-le à la main si c’est une transaction.' : 'Message d’information, sans montant.');
+  }
+
+  r.note = masquerNumeros(r.note).replace(/\s+/g, ' ').trim().slice(0, 120);
+  if (!Number.isSafeInteger(r.montant) || r.montant < 1) return ignorer('Montant illisible.');
+  r.categorie = r.type === 'depense' ? categorieExistante(r.categorie) : '';
+  if (r.reference && donnees.transactions.some(function (t) { return (t.justificatif || '').indexOf(r.reference) >= 0; })) {
+    return ignorer('Déjà enregistré (même référence ' + r.reference + ').');
+  }
+  r.fraisAjoutes = r.frais > 0;
+  r.importer = true;
+  /* Sans référence (certains envois), on repère un doublon probable :
+     même type, même montant, même date, déjà importé de Moov Money. */
+  if (!r.reference && donnees.transactions.some(function (t) {
+    return t.moyen === 'Moov Money' && t.type === r.type && t.montant === r.montant && t.date === r.date;
+  })) {
+    r.importer = false;
+    r.avertissement = 'Semble déjà enregistré (même montant, même date) : coche « Importer » seulement si c’est une autre opération.';
+  }
+  return r;
+}
+
+function ouvrirImportSMS(texte) {
+  document.getElementById('voile-feuille').classList.add('cache');
+  document.getElementById('sms-texte').value = texte || '';
+  document.getElementById('erreur-sms').textContent = '';
+  document.getElementById('etape-sms-saisie').classList.remove('cache');
+  document.getElementById('etape-sms-resultats').classList.add('cache');
+  document.getElementById('voile-sms').classList.remove('cache');
+  if (texte) analyserTexteSMS(); else document.getElementById('sms-texte').focus();
+}
+
+function analyserTexteSMS() {
+  const messages = decouperSMS(document.getElementById('sms-texte').value);
+  if (!messages.length) {
+    document.getElementById('erreur-sms').textContent = 'Colle au moins un SMS.';
+    return;
+  }
+  const references = new Set();
+  analysesSMS = messages.map(function (message) {
+    const analyse = analyserSMS(message);
+    if (!analyse.raison && analyse.reference) {
+      if (references.has(analyse.reference)) {
+        analyse.raison = 'En double dans le texte collé.';
+        analyse.importer = false;
+      }
+      references.add(analyse.reference);
+    }
+    return analyse;
+  });
+  document.getElementById('etape-sms-saisie').classList.add('cache');
+  document.getElementById('etape-sms-resultats').classList.remove('cache');
+  rendreAnalysesSMS();
+}
+
+/* Petit champ étiqueté pour la vérification d'une ligne. */
+function champSMS(idChamp, libelle, element, large) {
+  const bloc = document.createElement('div');
+  bloc.className = 'champ' + (large ? ' champ-large' : '');
+  const etiquette = document.createElement('label');
+  etiquette.htmlFor = idChamp;
+  etiquette.textContent = libelle;
+  element.id = idChamp;
+  bloc.append(etiquette, element);
+  return bloc;
+}
+
+function choixSMS(options, valeur) {
+  const select = document.createElement('select');
+  options.forEach(function (option) {
+    const element = document.createElement('option');
+    element.value = option[0];
+    element.textContent = option[1];
+    select.appendChild(element);
+  });
+  select.value = valeur;
+  return select;
+}
+
+function saisieSMS(type, valeur) {
+  const input = document.createElement('input');
+  input.type = type;
+  if (type === 'number') { input.min = '1'; input.step = '1'; input.inputMode = 'numeric'; }
+  input.value = valeur === null || valeur === undefined ? '' : valeur;
+  return input;
+}
+
+function rendreAnalysesSMS() {
+  const liste = document.getElementById('liste-sms');
+  liste.replaceChildren();
+  const reconnues = analysesSMS.filter(function (a) { return !a.raison; }).length;
+  document.getElementById('resume-sms').textContent = reconnues + (reconnues > 1 ? ' transactions reconnues' : ' transaction reconnue') +
+    ' sur ' + analysesSMS.length + (analysesSMS.length > 1 ? ' messages' : ' message') + '. Vérifie-les avant d’enregistrer.';
+
+  analysesSMS.forEach(function (a, i) {
+    const li = document.createElement('li');
+    li.className = 'sms-ligne' + (a.raison ? ' sms-ignore' : '');
+    const extrait = document.createElement('p');
+    extrait.className = 'sms-extrait';
+    extrait.textContent = masquerNumeros(a.texte);
+    extrait.title = extrait.textContent;
+    li.appendChild(extrait);
+
+    if (a.raison) {
+      const raison = document.createElement('p');
+      raison.className = 'sms-raison';
+      raison.textContent = a.raison;
+      li.appendChild(raison);
+      liste.appendChild(li);
+      return;
+    }
+
+    const caseImporter = document.createElement('label');
+    caseImporter.className = 'case-a-cocher';
+    const coche = document.createElement('input');
+    coche.type = 'checkbox';
+    coche.checked = a.importer;
+    coche.addEventListener('change', function () { a.importer = coche.checked; mettreAJourBoutonSMS(); });
+    caseImporter.append(coche, document.createTextNode(' Importer'));
+    li.appendChild(caseImporter);
+    if (a.avertissement) {
+      const avertissement = document.createElement('p');
+      avertissement.className = 'sms-raison';
+      avertissement.textContent = a.avertissement;
+      li.appendChild(avertissement);
+    }
+
+    const champs = document.createElement('div');
+    champs.className = 'sms-champs';
+    const prefixe = 'sms-' + i + '-';
+
+    const type = choixSMS([['depense', 'Dépense'], ['revenu', 'Revenu'], ['transfert', 'Transfert interne']], a.type);
+    type.addEventListener('change', function () {
+      a.type = type.value;
+      if (a.type === 'depense' && !a.categorie) a.categorie = categorieExistante('Divers');
+      if (a.type === 'transfert' && !a.source) { a.source = 'Moov Money'; a.destination = 'Espèces'; }
+      rendreAnalysesSMS();
+    });
+    champs.appendChild(champSMS(prefixe + 'type', 'Type', type));
+
+    const montant = saisieSMS('number', a.montant);
+    montant.addEventListener('input', function () { a.montant = Number(montant.value); });
+    champs.appendChild(champSMS(prefixe + 'montant', 'Montant (' + donnees.reglages.devise + ')', montant));
+
+    const date = saisieSMS('date', a.date);
+    date.addEventListener('change', function () { a.date = date.value; });
+    champs.appendChild(champSMS(prefixe + 'date', a.dateDevinee ? 'Date (absente du SMS)' : 'Date', date));
+
+    if (a.type === 'transfert') {
+      const source = saisieSMS('text', a.source);
+      source.addEventListener('input', function () { a.source = source.value.trim(); });
+      champs.appendChild(champSMS(prefixe + 'source', 'Depuis', source));
+      const destination = saisieSMS('text', a.destination);
+      destination.addEventListener('input', function () { a.destination = destination.value.trim(); });
+      champs.appendChild(champSMS(prefixe + 'destination', 'Vers', destination));
+    } else {
+      const options = [['', '— Aucune —']].concat(donnees.reglages.categories.map(function (nom) { return [nom, nom]; }));
+      const categorie = choixSMS(a.type === 'depense' ? options.slice(1) : options, a.categorie);
+      categorie.addEventListener('change', function () { a.categorie = categorie.value; });
+      champs.appendChild(champSMS(prefixe + 'categorie', 'Catégorie', categorie));
+    }
+
+    const note = saisieSMS('text', a.note);
+    note.maxLength = 120;
+    note.addEventListener('input', function () { a.note = note.value.trim(); });
+    champs.appendChild(champSMS(prefixe + 'note', 'Libellé', note, true));
+    li.appendChild(champs);
+
+    if (a.frais > 0) {
+      const caseFrais = document.createElement('label');
+      caseFrais.className = 'case-a-cocher';
+      const cocheFrais = document.createElement('input');
+      cocheFrais.type = 'checkbox';
+      cocheFrais.checked = a.fraisAjoutes;
+      cocheFrais.addEventListener('change', function () { a.fraisAjoutes = cocheFrais.checked; });
+      caseFrais.append(cocheFrais, document.createTextNode(' Ajouter les frais de ' + formaterMontant(a.frais) + ' comme dépense'));
+      li.appendChild(caseFrais);
+    }
+
+    const erreur = document.createElement('small');
+    erreur.className = 'message-erreur';
+    erreur.id = prefixe + 'erreur';
+    li.appendChild(erreur);
+    liste.appendChild(li);
+  });
+  mettreAJourBoutonSMS();
+}
+
+function mettreAJourBoutonSMS() {
+  const nombre = analysesSMS.filter(function (a) { return a.importer && !a.raison; }).length;
+  const bouton = document.getElementById('btn-enregistrer-sms');
+  bouton.textContent = nombre ? 'Enregistrer ' + nombre + (nombre > 1 ? ' transactions' : ' transaction') : 'Rien à enregistrer';
+  bouton.disabled = nombre === 0;
+}
+
+function enregistrerImportSMS() {
+  let valide = true;
+  analysesSMS.forEach(function (a, i) {
+    if (!a.importer || a.raison) return;
+    let message = '';
+    if (!Number.isSafeInteger(a.montant) || a.montant < 1) message = 'Montant entier supérieur à zéro attendu.';
+    else if (!/^\d{4}-\d{2}-\d{2}$/.test(a.date)) message = 'Choisis une date.';
+    else if (a.type === 'depense' && !a.categorie) message = 'Choisis une catégorie.';
+    else if (a.type === 'transfert' && (!a.source || !a.destination || a.source.toLocaleLowerCase() === a.destination.toLocaleLowerCase())) message = 'Indique une origine et une destination différentes.';
+    document.getElementById('sms-' + i + '-erreur').textContent = message;
+    if (message) valide = false;
+  });
+  if (!valide) return;
+
+  const retenues = analysesSMS.filter(function (a) { return a.importer && !a.raison; });
+  if (!retenues.length) return;
+  const avant = JSON.stringify(donnees);
+  let ajoutees = 0;
+  retenues.forEach(function (a) {
+    const justificatif = 'Moov Money' + (a.reference ? ' · Réf ' + a.reference : '');
+    donnees.transactions.push({ id: nouvelIdentifiant(), creeLe: Date.now(), type: a.type, montant: a.montant, date: a.date,
+      categorie: a.type === 'transfert' ? '' : a.categorie, activiteId: '', objectifId: '', moyen: 'Moov Money',
+      note: a.note, justificatif: justificatif, source: a.type === 'transfert' ? a.source : '',
+      destination: a.type === 'transfert' ? a.destination : '' });
+    ajoutees += 1;
+    if (a.fraisAjoutes && a.frais > 0) {
+      donnees.transactions.push({ id: nouvelIdentifiant(), creeLe: Date.now(), type: 'depense', montant: a.frais, date: a.date,
+        categorie: categorieFrais(), activiteId: '', objectifId: '', moyen: 'Moov Money',
+        note: 'Frais Moov Money · ' + a.note, justificatif: justificatif + ' (frais)', source: '', destination: '' });
+      ajoutees += 1;
+    }
+  });
+  if (!enregistrerDonnees()) { donnees = JSON.parse(avant); rendreTout(); return; }
+  document.getElementById('voile-sms').classList.add('cache');
+  moisFiltre = retenues.map(function (a) { return a.date; }).sort().pop().slice(0, 7);
+  proposerAnnulation(avant, ajoutees + (ajoutees > 1 ? ' transactions importées.' : ' transaction importée.'));
+  rendreTout();
+}
+
+/* Partage depuis l'application de messages (Android) : le service
+   worker a rangé le texte sur l'appareil, sans l'envoyer au serveur. */
+async function ouvrirPartageSMS() {
+  if (new URLSearchParams(location.search).get('partage') !== '1') return;
+  history.replaceState(null, '', location.pathname);
+  try {
+    const cache = await caches.open('cap-partage');
+    const adresse = new URL('./partage-texte', document.baseURI).href;
+    const reponse = await cache.match(adresse);
+    if (!reponse) return;
+    const texte = await reponse.text();
+    await cache.delete(adresse);
+    ouvrirImportSMS(texte);
+  } catch (erreur) {
+    /* Partage illisible : l'utilisateur peut toujours coller le SMS. */
+  }
+}
+
 /* ---------- 9 bis. Graphiques de l'accueil ---------- */
 
 /* Dessinés en SVG, sans bibliothèque : l'application reste utilisable
@@ -3414,6 +3780,15 @@ function installerEcouteurs() {
   document.querySelectorAll('[data-action="feuille"]').forEach(function (bouton) {
     bouton.addEventListener('click', function () { feuille.classList.remove('cache'); });
   });
+  document.querySelectorAll('[data-action="sms"]').forEach(function (bouton) {
+    bouton.addEventListener('click', function () { ouvrirImportSMS(''); });
+  });
+  document.getElementById('btn-analyser-sms').addEventListener('click', analyserTexteSMS);
+  document.getElementById('btn-sms-retour').addEventListener('click', function () {
+    document.getElementById('etape-sms-saisie').classList.remove('cache');
+    document.getElementById('etape-sms-resultats').classList.add('cache');
+  });
+  document.getElementById('btn-enregistrer-sms').addEventListener('click', enregistrerImportSMS);
   document.querySelectorAll('[data-action="cotiser"]').forEach(function (bouton) {
     bouton.addEventListener('click', function () {
       feuille.classList.add('cache');
@@ -3551,6 +3926,8 @@ document.getElementById('rapport-fin').value = periodeRapport.fin;
 
 installerEcouteurs();
 rendreTout();
+
+ouvrirPartageSMS();
 
 let minuteurRedimension = null;
 window.addEventListener('resize', function () {

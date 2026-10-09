@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cap-shell-v15';
+const CACHE_NAME = 'cap-shell-v16';
 const APP_FILES = [
   './',
   './index.html',
@@ -52,8 +52,24 @@ self.addEventListener('activate', function (event) {
 });
 
 self.addEventListener('fetch', function (event) {
-  if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
+
+  /* SMS partagé depuis l'application de messages (Android) : le texte
+     est rangé sur l'appareil, puis la page d'accueil l'ouvre. Il ne
+     part jamais vers le serveur. */
+  if (event.request.method === 'POST' && url.pathname.endsWith('/partage-sms')) {
+    event.respondWith(event.request.formData().then(function (formulaire) {
+      const texte = [formulaire.get('titre'), formulaire.get('texte')].filter(Boolean).join('\n');
+      return caches.open('cap-partage').then(function (cache) {
+        return cache.put(new URL('./partage-texte', self.registration.scope).href, new Response(texte));
+      });
+    }).then(function () {
+      return Response.redirect(new URL('./?partage=1', self.registration.scope).href, 303);
+    }));
+    return;
+  }
+
+  if (event.request.method !== 'GET') return;
   if (url.origin !== self.location.origin) return;
 
   /* Fichiers de l'application (page, script, style) : le réseau

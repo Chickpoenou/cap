@@ -34,6 +34,7 @@
     <symbol id="i-alerte" viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15L6 16z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></symbol>
     <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
     <symbol id="i-retour" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></symbol>
+    <symbol id="i-sms" viewBox="0 0 24 24"><path d="M4 4.5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-5 4v-15a1 1 0 0 1 1-1z"/><path d="M8 9h8M8 12.5h5"/></symbol>
     <symbol id="i-sauvegarde" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v3h16v-3"/></symbol>
   </svg>
 
@@ -211,7 +212,7 @@
           <button type="button" data-ecran="rapports"><span class="pastille"><svg class="icone"><use href="#i-rapport"/></svg></span><span><strong>Rapports</strong><small>Bilans par période, export CSV</small></span><svg class="icone chevron"><use href="#i-chevron"/></svg></button>
           <button type="button" data-ecran="parametres"><span class="pastille"><svg class="icone"><use href="#i-reglages"/></svg></span><span><strong>Paramètres</strong><small>Sauvegarde, catégories, devise</small></span><svg class="icone chevron"><use href="#i-chevron"/></svg></button>
         </nav>
-        <p class="pied">Cap 0.9 · données enregistrées sur cet appareil uniquement</p>
+        <p class="pied">Cap 0.10 · données enregistrées sur cet appareil uniquement</p>
       </section>
 
       <!-- ============ BUDGETS ============ -->
@@ -329,6 +330,34 @@
         <button type="button" data-ouvrir="revenu"><span class="pastille pastille-entree"><svg class="icone"><use href="#i-entree"/></svg></span>Revenu</button>
         <button type="button" data-ouvrir="transfert"><span class="pastille"><svg class="icone"><use href="#i-transfert"/></svg></span>Transfert</button>
         <button type="button" data-action="cotiser"><span class="pastille pastille-epargne"><svg class="icone"><use href="#i-cotiser"/></svg></span>Cotiser</button>
+        <button type="button" data-action="sms"><span class="pastille pastille-sms"><svg class="icone"><use href="#i-sms"/></svg></span>SMS</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ IMPORT DE SMS MOBILE MONEY ============ -->
+  <section id="voile-sms" class="voile cache" role="dialog" aria-modal="true" aria-labelledby="titre-sms">
+    <div class="voile-carte voile-large">
+      <h2 id="titre-sms">Importer des SMS Moov Money</h2>
+      <div id="etape-sms-saisie">
+        <div class="champ">
+          <label for="sms-texte">Colle un ou plusieurs SMS</label>
+          <textarea id="sms-texte" rows="7" placeholder="Bravo ! Vous avez payé 10 000 FCFA au marchand …"></textarea>
+          <small class="message-erreur" id="erreur-sms"></small>
+        </div>
+        <p class="note">L'analyse se fait sur ton appareil : le texte n'est envoyé nulle part. Tu vérifies chaque transaction avant de l'enregistrer.</p>
+        <div class="actions-formulaire">
+          <button type="button" class="btn btn-secondaire" data-fermer="sms">Annuler</button>
+          <button type="button" class="btn btn-principal" id="btn-analyser-sms">Analyser</button>
+        </div>
+      </div>
+      <div id="etape-sms-resultats" class="cache">
+        <p id="resume-sms" class="note"></p>
+        <ul id="liste-sms" class="liste-sms"></ul>
+        <div class="actions-formulaire">
+          <button type="button" class="btn btn-secondaire" id="btn-sms-retour">Modifier le texte</button>
+          <button type="button" class="btn btn-principal" id="btn-enregistrer-sms">Enregistrer</button>
+        </div>
       </div>
     </div>
   </section>

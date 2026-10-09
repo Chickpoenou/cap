@@ -1138,6 +1138,87 @@ button {
 .pastille-entree { background: var(--entree-fond); color: var(--entree); }
 .pastille-sortie { background: var(--sortie-fond); color: var(--sortie); }
 .pastille-epargne { background: var(--epargne-fond); color: var(--epargne); }
+.pastille-sms { background: #e6eefb; color: var(--logo-bleu); }
+
+/* La feuille « Nouvelle saisie » a cinq actions. */
+#voile-feuille .actions-rapides {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+/* Import de SMS */
+.voile-large {
+  max-width: 760px;
+}
+
+#resume-sms {
+  margin-bottom: 12px;
+}
+
+.liste-sms {
+  margin: 0 0 4px;
+  padding: 0;
+  list-style: none;
+}
+
+.sms-ligne {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--bordure);
+}
+
+.sms-ligne:first-child {
+  padding-top: 0;
+}
+
+.sms-extrait {
+  display: -webkit-box;
+  overflow: hidden;
+  margin-bottom: 8px;
+  color: var(--texte-2);
+  font-size: 12.5px;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.sms-ignore .sms-extrait {
+  -webkit-line-clamp: 1;
+}
+
+.sms-raison {
+  color: var(--attention);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.sms-champs {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0 10px;
+  margin-top: 8px;
+}
+
+.sms-champs .champ {
+  margin-bottom: 8px;
+}
+
+.sms-champs .champ-large {
+  grid-column: 1 / -1;
+}
+
+.sms-champs input,
+.sms-champs select {
+  padding: 8px 10px;
+  font-size: 15px;
+}
+
+@media (min-width: 900px) {
+  .sms-champs {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .sms-champs .champ-large {
+    grid-column: span 2;
+  }
+}
 
 /* ---------- 7. Rapports et paramètres ---------- */
 

@@ -243,7 +243,11 @@ La première version est considérée utilisable si l'utilisateur peut :
 3. Ajouter et suivre les activités, budgets et alertes (implémenté en version 0.3).
 4. Ajouter objectifs d'épargne et calcul des cotisations (implémenté en version 0.4 ; date estimée, rappel de sauvegarde et annulation en version 0.5).
 5. Ajouter investissements et rapports (implémenté en version 0.6, avec export CSV).
-   - 5 bis (à faire) : pré-remplir une transaction en collant un SMS de confirmation Mobile Money ; analyse sur l'appareil uniquement, validation par l'utilisateur.
+   - 5 bis (implémenté en version 0.10) : import de SMS Moov Money. On colle un ou plusieurs SMS (ou on les partage depuis l'application de messages sur Android) ; l'analyse se fait sur l'appareil et chaque transaction est vérifiée avant l'enregistrement.
+     - Dépenses : paiement marchand, recharge de crédit, forfait, transfert, envoi ; revenus : argent reçu ; transferts internes : dépôt chez un agent (espèces → Moov Money), retrait (Moov Money → espèces).
+     - Ignorés : demandes de paiement (rien n'est débité), crédit de communication reçu, messages d'information sans montant.
+     - Les frais deviennent une dépense séparée (catégorie contenant « frais » si elle existe, sinon « Divers ») ; la référence est gardée dans le justificatif pour repérer un SMS déjà importé ; sans référence, un même montant à la même date venant de Moov Money est signalé comme doublon probable.
+     - Les numéros de téléphone sont masqués dans les libellés ; le montant retenu est celui de l'opération, jamais le solde.
 6. Vérifier l'utilisation hors ligne, l'export et la restauration (vérifié en version 0.6 ; catégories, devise et rappel de mise à jour modifiables dans Paramètres).
 7. Ajouter la synchronisation en ligne seulement après validation de la version personnelle hors ligne.
 
