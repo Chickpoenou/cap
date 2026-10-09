@@ -2183,20 +2183,23 @@ function rendreTableauDeBord() {
   rendreResumeInvestissements();
 }
 
-/* ---------- 8 quater. Import de SMS Mobile Money (Moov Money) ---------- */
+/* ---------- 8 quater. Import de SMS Mobile Money (Moov Money, MTN MoMo) ---------- */
 
-/* Formats relevés sur de vrais SMS Moov Money (Bénin). L'analyse se
+/* Formats relevés sur de vrais SMS Moov Money et MTN MoMo (Bénin). L'analyse se
    fait sur l'appareil ; l'utilisateur vérifie chaque ligne avant
    l'enregistrement. Le montant retenu est celui de l'opération, jamais
    celui du solde. */
-const DEBUTS_SMS = /^(vous |bravo|txn id|cher abonn|cher client|f[ée]licitations|votre |transaction)/i;
-const MONTANT_SMS = '(\\d{1,3}(?:[ .]\\d{3})+|\\d+)\\s*(?:FCFA|F\\s?CFA|XOF)';
+const DEBUTS_SMS = /^(vous |bravo|txn id|cher abonn|cher client|f[ée]licitations|votre |transaction|paiement |transfert |retrait |d[ée]p[ôo]t |yello)/i;
+/* Moov écrit « 10 000 FCFA », MTN « 100F ». */
+const MONTANT_SMS = '(\\d{1,3}(?:[ .]\\d{3})+|\\d+)\\s*(?:FCFA|F\\s?CFA|XOF|F\\b)';
+/* MTN envoie parfois plusieurs messages collés sur une seule ligne. */
+const COUPURES_SMS = /\s(?=(?:Paiement \d|Yello,|Votre Forfait|Vous venez de consommer|Transfert de \d|Retrait de \d))/;
 let analysesSMS = [];
 
 /* Retire les caractères invisibles que les téléphones glissent dans
    les SMS copiés, et uniformise les espaces. */
 function nettoyerSMS(texte) {
-  return texte.replace(/[﻿​‌‍]/g, '').replace(/[  ]/g, ' ').replace(/[ \t]+/g, ' ').trim();
+  return texte.replace(/[\uFEFF\u200B\u200C\u200D]/g, '').replace(/[\u00A0\u202F]/g, ' ').replace(/[ \t]+/g, ' ').trim();
 }
 
 /* Un collage peut contenir plusieurs SMS : un message commence par une
@@ -2204,9 +2207,11 @@ function nettoyerSMS(texte) {
    autres lignes complètent le message précédent. */
 function decouperSMS(texte) {
   const messages = [];
-  texte.split(/\r?\n/).map(nettoyerSMS).filter(Boolean).forEach(function (ligne) {
-    if (!messages.length || DEBUTS_SMS.test(ligne)) messages.push(ligne);
-    else messages[messages.length - 1] += ' ' + ligne;
+  texte.split(/\r?\n/).map(nettoyerSMS).filter(Boolean).forEach(function (ligneEntiere) {
+    ligneEntiere.split(COUPURES_SMS).forEach(function (ligne) {
+      if (!messages.length || DEBUTS_SMS.test(ligne)) messages.push(ligne);
+      else messages[messages.length - 1] += ' ' + ligne;
+    });
   });
   return messages;
 }
@@ -2240,13 +2245,16 @@ function analyserSMS(brut) {
   const ignorer = function (raison) { r.raison = raison; return r; };
 
   const date = texte.match(/\ble\s+(\d{2})\/(\d{2})\/(\d{4})/i);
+  const dateIso = texte.match(/\b(\d{4})-(\d{2})-(\d{2})\s+\d{2}:\d{2}/);
   if (date) {
     r.date = date[3] + '-' + date[2] + '-' + date[1];
+  } else if (dateIso) {
+    r.date = dateIso[1] + '-' + dateIso[2] + '-' + dateIso[3];
   } else {
     r.date = aujourdhuiISO();
     r.dateDevinee = true;
   }
-  const reference = texte.match(/(?:r[ée]f(?:[ée]rence)?|txn\s*id)\s*:?\s*(\d{6,})/i);
+  const reference = texte.match(/(?:r[ée]f(?:[ée]rence)?|txn\s*id|\bid)\s*:?\s*(\d{6,})/i);
   if (reference) r.reference = reference[1];
   const frais = texte.match(/(?:frais|commission)\s*(?:est de)?\s*:?\s*(\d[\d ]*?)\s*F/i);
   if (frais) r.frais = lireMontantSMS(frais[1]);
@@ -2254,6 +2262,9 @@ function analyserSMS(brut) {
   let m;
   if (/demande de paiement/i.test(texte)) {
     return ignorer('Demande de paiement : rien n’a été débité. Ne la valide sur ton téléphone que si tu la reconnais.');
+  }
+  if (/expir|vous venez de consommer|vous donnant droit|volume .* restant/i.test(texte)) {
+    return ignorer('Information sur un forfait : la dépense correspondante est le SMS de paiement.');
   }
   if (cherche('re[çc]u\\s+' + MONTANT_SMS + '\\s+de cr[ée]dit')) {
     return ignorer('Crédit de communication reçu : pas d’argent sur ton compte.');
@@ -2280,6 +2291,13 @@ function analyserSMS(brut) {
     r.montant = lireMontantSMS(m[2]);
     r.categorie = 'Internet et crédit';
     r.note = ('Forfait ' + m[1]).trim();
+  } else if ((m = cherche('^paiement\\s+(?:de\\s+)?' + MONTANT_SMS + '\\s+(?:a|à)\\s+(.+?)(?:\\s+\\d{4}-\\d{2}-\\d{2}|\\s+le\\s|\\.|$)'))) {
+    r.montant = lireMontantSMS(m[1]);
+    r.note = 'Paiement ' + m[2];
+    if (/data|internet|forfait|cr[ée]dit|airtime/i.test(m[2])) r.categorie = 'Internet et crédit';
+  } else if ((m = cherche('^transfert\\s+de\\s+' + MONTANT_SMS + '\\s+(?:a|à|au|vers)\\s+(.+?)(?:\\s+\\(|\\s+\\d{4}-\\d{2}-\\d{2}|\\s+le\\s|\\.|$)'))) {
+    r.montant = lireMontantSMS(m[1]);
+    r.note = 'Transfert vers ' + m[2];
   } else if ((m = cherche('pay[ée]\\s+' + MONTANT_SMS + '\\s+au marchand\\s+(.+?)\\s+(?:\\d{6,}\\s+)?pour'))) {
     r.montant = lireMontantSMS(m[1]);
     r.note = 'Paiement ' + m[2];
