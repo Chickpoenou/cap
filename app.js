@@ -91,7 +91,7 @@ function chargerDonnees() {
   }
 
   try {
-    const lues = JSON.parse(brut);
+    const lues = migrerAnciennesDonnees(JSON.parse(brut));
     if (!structureValide(lues)) {
       throw new Error('Structure invalide');
     }
@@ -101,6 +101,45 @@ function chargerDonnees() {
     stockageEnErreur = true;
     messageErreurStockage = "Les données enregistrées sont illisibles. Elles ont été préservées ; restaure une sauvegarde ou exporte les données endommagées avant de réinitialiser.";
   }
+}
+
+/* La version 0.5 publiée sur GitHub enregistrait les investissements
+   autrement : liste « apports », valeur, frais et revenus en totaux.
+   On les convertit au format actuel avant la vérification, sans rien
+   perdre : chaque total devient une opération de l'historique. */
+function migrerAnciennesDonnees(objet) {
+  if (!objet || typeof objet !== 'object' || !Array.isArray(objet.investissements)) return objet;
+  objet.investissements = objet.investissements.map(function (ancien) {
+    if (!ancien || typeof ancien !== 'object' || Array.isArray(ancien.operations) || !Array.isArray(ancien.apports)) return ancien;
+    const creeLe = Number.isFinite(ancien.creeLe) ? ancien.creeLe : Date.now();
+    const dateValeur = typeof ancien.dateMiseAJourValeur === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(ancien.dateMiseAJourValeur)
+      ? ancien.dateMiseAJourValeur
+      : versISO(new Date(creeLe));
+    const operations = ancien.apports.map(function (apport) {
+      return { id: apport.id, type: 'apport', montant: apport.montant, date: apport.date,
+        note: typeof apport.note === 'string' ? apport.note : '', creeLe: Number.isFinite(apport.creeLe) ? apport.creeLe : creeLe };
+    });
+    ['frais', 'revenus'].forEach(function (cle) {
+      if (Number.isSafeInteger(ancien[cle]) && ancien[cle] > 0) {
+        operations.push({ id: nouvelIdentifiant(), type: cle === 'frais' ? 'frais' : 'revenu', montant: ancien[cle], date: dateValeur,
+          note: 'Total repris de la version 0.5', creeLe: creeLe });
+      }
+    });
+    const valeurs = Number.isSafeInteger(ancien.valeurActuelle) && ancien.valeurActuelle >= 0
+      ? [{ id: nouvelIdentifiant(), montant: ancien.valeurActuelle, date: dateValeur, note: '', creeLe: creeLe }]
+      : [];
+    return {
+      id: ancien.id,
+      nom: ancien.nom,
+      type: typeof ancien.type === 'string' ? ancien.type : '',
+      notes: typeof ancien.notes === 'string' ? ancien.notes : '',
+      statut: 'actif',
+      creeLe: creeLe,
+      operations: operations,
+      valeurs: valeurs
+    };
+  });
+  return objet;
 }
 
 /* Complète une structure valide avec les listes et réglages
@@ -375,7 +414,7 @@ async function restaurerSauvegarde(fichier) {
   if (!fichier) return;
   try {
     const contenu = JSON.parse(await fichier.text());
-    const candidate = contenu && contenu.application === 'Cap' ? contenu.donnees : contenu;
+    const candidate = migrerAnciennesDonnees(contenu && contenu.application === 'Cap' ? contenu.donnees : contenu);
     if (!structureValide(candidate)) {
       throw new Error('Format de sauvegarde non reconnu');
     }
